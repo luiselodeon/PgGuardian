@@ -40,3 +40,41 @@ WHERE
     c.contype = 'f' -- Se usa f para filtrar las llaves foráneas
 ORDER BY 
     tiene_indice ASC, table_name;
+
+
+/*
+Problema: Índices duplicados
+
+Este query identifica índices que comparten la misma tabla, 
+las mismas columnas y el mismo orden, lo cual genera redundancia.
+Se excluyen los catálogos de PostgreSQLpara evitar reportar duplicados 
+internos del motor. 
+
+Referencias:
+PostgreSQL. (2026). 52.7. pg_attribute. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-attribute.html
+PostgreSQL. (2026). 52.26. pg_index. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-index.html
+PostgreSQL. (2026). 52.11. pg_class. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-class.html
+PostgreSQL. (2026). 52.32. pg_namespace. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-namespace.html
+*/
+
+SELECT 
+    indrelid::regclass AS table_name, -- Convierte el OID a nombre de tabla
+    array_to_string(array_agg(a.attname ORDER BY x.pos), ', ') AS columns, -- Convierte el arreglo de nombres de columnas en una cadena de texto y los agrupa
+    COUNT(*) AS total_duplicates,
+    string_agg(i.relname, ', ') AS index_names -- Concatena los nombres de los índices duplicados
+FROM (
+    SELECT -- Subconsulta para desglosar indkey en filas individuales
+        indrelid, 
+        indexrelid, 
+        indkey, 
+        generate_subscripts(indkey, 1) AS pos -- Genera indices para cada columna en el índice
+    FROM pg_index
+) AS x
+JOIN pg_attribute a ON a.attrelid = x.indrelid AND a.attnum = x.indkey[x.pos]
+JOIN pg_class i ON i.oid = x.indexrelid
+JOIN pg_namespace n ON n.oid = i.relnamespace -- Unión para verificar el esquema
+WHERE 
+    n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast') -- Excluye esquemas del sistema para evitar ruido
+GROUP BY indrelid, indkey
+HAVING COUNT(*) > 1
+ORDER BY table_name;
