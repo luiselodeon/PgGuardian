@@ -14,12 +14,12 @@ services:
     container_name: tiendadb
     restart: unless-stopped
     environment:
-      POSTGRES_DB: tiendadb
-      POSTGRES_USER: tienda_user
-      POSTGRES_PASSWORD: tienda_pass
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5433:5432"
+      - "${DB_PORT}:5432"
     volumes:
       # Init scripts run in alphabetical order on first start
       - ./init:/docker-entrypoint-initdb.d:ro
@@ -29,7 +29,7 @@ services:
       - tienda_data:/var/lib/postgresql/data
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tienda_user -d tiendadb"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
       timeout: 5s
       retries: 10
