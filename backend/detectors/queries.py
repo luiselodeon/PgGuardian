@@ -13,6 +13,8 @@ Incluye:
 
 """
 
+import psycopg2.extras
+
 # Tamaño normal de bloque temporal en PostgreSQL (8 KB)
 BLOCK_SIZE = 8192
 
@@ -152,3 +154,56 @@ def detect_temp_spills(conn):
         })
 
     return findings
+
+
+# Función para detectar funciones que estén usando Seq Scan
+def detect_seq_scan_queries(conn):
+    """
+    Analiza las queries de pg_stat_statements que más tiempo toman (top 20)
+    y reporta las que realizan Seq Scans.
+    """
+    seq_scan_queries = []
+        
+    sql_top = """
+        SELECT query, calls, queryid 
+        FROM pg_stat_statements 
+        WHERE query NOT LIKE 'SELECT pg_%' AND query NOT LIKE 'EXPLAIN %'
+        ORDER BY total_exec_time DESC LIMIT 20;
+    """
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql_top)
+            top_queries = cur.fetchall()
+
+            for row in top_queries:
+                try:
+                    # Se ejecuta el plan de ejecución para la query que se está analizando actualmente
+                    cur.execute(f"EXPLAIN {row['query']}")
+                    plan = cur.fetchall()
+                    
+                    # Se busca en el plan de ejecución si es que hay un query que use Seq Scan
+                    for plan_line in plan:
+                        line = plan_line[0]
+                        
+                        # Aquí es donde se detecta Seq Scan en el plan de ejecución
+                        if "Seq Scan on" in line:                            
+                            # Esto hace que se pueda extraer el nombre de la tabla del query que se está analizando
+                            table_match = line.split("on ")[1].split("  ")[0].strip()
+                            
+                            seq_scan_queries.append({                                
+                                "title": f"Seq Scan detectado en tabla: {table_match} por el query {row['queryid']}",                                                                
+                                "recommendation": f"Verificar si la tabla '{table_match}' requiere índices",
+                                "query": row['query'][:200], # Muestra el query 
+                                "calls": row['calls'] # Veces que se ha ejecutado el query
+                            })
+                            
+                            break 
+                except:
+                    # En caso de que no hayan queries que no se permita explain se saltan 
+                    continue
+                    
+    except Exception as e:
+        print(f"Error al detectar Seq Scans en queries: {e}")
+        
+    return seq_scan_queries
