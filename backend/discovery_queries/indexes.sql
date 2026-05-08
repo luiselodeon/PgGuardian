@@ -78,3 +78,34 @@ WHERE
 GROUP BY indrelid, indkey
 HAVING COUNT(*) > 1
 ORDER BY table_name;
+
+
+/*
+Problema: Índices no usados
+
+Identifica índices que no han sido utilizados en escaneos (idx_scan = 0)
+pero cuyas tablas sí han recibido actividad. El catálogo de pg_stat_user_indexes
+proporciona información sobre cómo se está usando la base de datos en la vida 
+real. 
+
+Referencias: 
+PostgreSQL. (2026). 27.2. The Cumulative Statistics System. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/monitoring-stats.html#MONITORING-STATS-VIEWS
+*/
+
+SELECT 
+    schemaname AS schema_name,         
+    relname AS table_name, -- Nombre de la tabla a la que pertenece el índice.
+    indexrelname AS index_name, -- Nombre del índice detectado como no usado.
+    idx_scan, 
+    pg_size_pretty( 
+        pg_relation_size(indexrelid) -- Calcula el espacio físico que el índice ocupa en disco.
+    ) AS index_size
+FROM 
+    pg_stat_user_indexes -- Vista de PostgreSQL que rastrea el uso de índices.
+WHERE 
+    idx_scan = 0 -- Filtra los índices que nunca se han usado.
+    AND idx_tup_read = 0 -- Checar que no se han leído tuplas a través de él.
+    AND idx_tup_fetch = 0 -- Checar que no se han obtenido tuplas a través de él.    
+    AND indexrelname NOT LIKE '%_pkey' -- Excluye los índices de primary keys para evitar ruido 
+ORDER BY 
+    pg_relation_size(indexrelid) DESC; -- Ordena por tamaño para conocer los índices que más espacio ocupan.

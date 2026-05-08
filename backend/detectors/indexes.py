@@ -87,3 +87,43 @@ def check_duplicate_indexes(conn):
         raise e
         
     return duplicate_indexes
+
+
+# Función para detectar índices que no se han usado 
+def check_unused_indexes(conn):
+    """
+    Identifica índices que consumen recursos pero no se utilizan.
+    
+    Analiza las estadísticas acumuladas desde el último reset de estadísticas
+    o desde la creación de la base de datos.
+    """
+        
+    query = """
+    SELECT 
+        relname AS table_name,
+        indexrelname AS index_name,
+        idx_scan,
+        pg_size_pretty(pg_relation_size(indexrelid)) AS size
+    FROM 
+        pg_stat_user_indexes
+    WHERE 
+        idx_scan = 0 
+        AND idx_tup_read = 0   
+        AND idx_tup_fetch = 0  
+        AND indexrelname NOT LIKE '%_pkey' 
+    ORDER BY 
+        pg_relation_size(indexrelid) DESC;
+    """
+    
+    unused_indexes = []
+    
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query)
+            unused_indexes = cur.fetchall()
+            
+    except Exception as e:
+        print(f"Error en el detector de índices no usados: {e}")
+        raise e
+        
+    return unused_indexes
