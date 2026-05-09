@@ -246,3 +246,54 @@ WHERE
     AND indexrelname NOT LIKE '%_pkey' -- Excluye los índices de primary keys para evitar ruido 
 ORDER BY 
     pg_relation_size(indexrelid) DESC; -- Ordena por tamaño para conocer los índices que más espacio ocupan.
+
+
+/*
+Covering index con INCLUDE
+Identifica consultas de alta frecuencia que filtran por una columna pero proyectan 
+otras adicionales. Sugiere la implementación de un "Covering Index" para permitir 
+un Index-Only Scan, eliminando la necesidad de acceder al Heap (tabla física) 
+y reduciendo drásticamente el I/O.
+*/
+SELECT 
+-- recorte de cadena para no saturar buffers y legilibilidad en reportes
+    LEFT(query, 200) AS query_sample, -- muestra de la consulta normalizada
+    -- conteo de ejecuciones totales
+    calls AS executions,  -- popularidad de la consulta
+
+    -- Tiempo total acumulado en milisegundos
+    round(total_exec_time::numeric, 2) AS total_time_ms,
+    
+    -- tiempo promedio por ejecución. avg = totalTime / calls
+    round((total_exec_time / NULLIF(calls, 0))::numeric, 2) AS avg_ms,
+
+    -- cálculo del ratio de cache_hit (eficiencia en RAM)
+    -- eficiencia del caché, si es baja, el covering index urge más
+    CASE 
+        WHEN (shared_blks_hit + shared_blks_read) > 0
+            THEN round(100.0 * shared_blks_hit / (shared_blks_hit + shared_blks_read), 2)
+        ELSE 100
+    END AS cache_hit_pct
+FROM pg_stat_statements
+WHERE  
+    query ILIKE 'SELECT%'   -- filtra solo consultas de lectura
+    AND query ~ 'WHERE\s+\S+\s*=\s*\$[0-9]' -- solo queries con criterios de filtrado
+    AND query NOT ILIKE 'SELECT *%' -- ignora proyecciones completas (no optimizables con INCLUDE)
+    AND query NOT ILIKE 'SELECT count(*)%' -- Excluir COUNT(*) — son aggregations, no proyecciones
+    AND calls >= 5   -- ignorar consultas ruidosas
+    -- Excluir consultas al catálogo del sistema
+    AND query NOT ILIKE '%pg_stat%'
+    AND query NOT ILIKE '%pg_class%'
+    AND query NOT ILIKE '%pg_index%'
+    AND query NOT ILIKE '%information_schema%'
+ORDER BY total_exec_time DESC   -- priorizar por carga acumulada
+LIMIT 15;
+
+/*
+Referencias.
+https://www.postgresql.org/docs/18/functions-string.html
+https://www.postgresql.org/docs/current/functions-conditional.html#FUNCTIONS-NULLIF
+https://www.postgresql.org/docs/current/pgstatstatements.html
+https://www.postgresql.org/docs/18/functions-matching.html
+
+*/

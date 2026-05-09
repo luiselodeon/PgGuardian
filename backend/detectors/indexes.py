@@ -181,3 +181,55 @@ def check_unused_indexes(conn):
         raise e
         
     return unused_indexes
+
+
+def check_covering_index_candidates(conn):
+    """
+    Analiza pg_stat_statements para identificar SELECTs frecuentes que 
+    podrían convertirse en Index-Only Scans mediante el uso de la cláusula INCLUDE.
+    Requiere la extensión pg_stat_statements habilitada.
+    """
+
+    query = """
+    SELECT 
+        LEFT(query, 200) AS query_sample,
+        calls AS total_executions,
+        round(total_exec_time::numeric, 2) AS total_time_ms,
+        round( (total_exec_time / NULLIF(calls, 0))::numeric, 2 ) AS avg_time_ms,
+        
+        temp_blks_written AS temp_blocks,
+        CASE 
+            WHEN (shared_blks_hit + shared_blks_read) > 0 
+                THEN round(
+                    100.0 * shared_blks_hit / (shared_blks_hit + shared_blks_read), 2
+                )
+            ELSE 100 
+        END AS cache_hit_pct
+ 
+    FROM pg_stat_statements
+ 
+    WHERE 
+        query ILIKE 'SELECT%%'
+        AND query ~ 'WHERE\\s+\\S+\\s*=\\s*\\$[0-9]'
+        AND query NOT ILIKE 'SELECT *%%'
+        AND query NOT ILIKE 'SELECT count(*)%%'
+        AND calls >= 5
+        AND query NOT ILIKE '%%pg_stat%%'
+        AND query NOT ILIKE '%%pg_class%%'
+        AND query NOT ILIKE '%%pg_index%%'
+        AND query NOT ILIKE '%%information_schema%%'
+ 
+    ORDER BY total_exec_time DESC
+    LIMIT 15;
+"""
+    covering_candidates = []
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query)
+            covering_candidates = cur.fetchall()
+    
+    except Exception as e:
+        print(f"Error en el detector de Covering Indexes: {e}")
+        raise e
+    return covering_candidates
