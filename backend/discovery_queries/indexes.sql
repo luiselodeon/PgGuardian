@@ -297,3 +297,63 @@ https://www.postgresql.org/docs/current/pgstatstatements.html
 https://www.postgresql.org/docs/18/functions-matching.html
 
 */
+
+/*
+Buscar estadísticas obsoletas
+Después de inserts o deletes sin analyze, o sin autovacuum
+El planner de Postgres usa pg_class.reltuples para estimar cuántas filas leerá cada operación
+si hay más filas de las que este detecta, las operaciones serán mucho más lentas
+*/
+
+WITH stats_completions AS (
+    SELECT
+        psu.schemaname AS schema_name,
+        psu.relname AS table_name,
+        c.reltuples::bigint AS planner_estimate, -- reltuples es lo que el Planner cree que tiene la tabla, solo se actualiza después de un ANALYZE o VACUUM
+        psu.n_live_tup AS stats_live_tuples,    -- es lo que el Collector cuenta, se actualiza casi en tiempo real con cada INSERT o DELETE
+        CASE
+            WHEN psu.n_live_tup > 0 AND c.reltuples > 0 -- mediremos un ratio para estimar que tan desfasado está el planner
+                THEN round (
+                    /*
+                    comparar el más grande contra el más chico por si crece o si se achica
+                    - GREATEST: toma el número más grande
+                    - LEAST: Selecciona el más pequeño
+                    con ::numeric obtenemos decimales de la división, limitamos a 2,
+                    con la comparación nos aseguramos que el resultado siempre sea un num > 1
+                    */ 
+                    GREATEST(c.reltuples, psu.n_live_tup)::numeric / LEAST(c.reltuples, psu.n_live_tup)::numeric, 2)
+            ELSE NULL
+        END AS divergence_ratio
+    FROM pg_stat_user_tables psu
+    -- JOIN con pg_namespace para evitar colisiones de nombres entre esquemas
+    JOIN pg_class c ON c.relname = psu.relname
+    JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = psu.schemaname
+    WHERE n.nspname NOT LIKE 'pg_%' -- excluimos las tablas del sistema
+    AND c.relkind = 'r' -- buscamos relaciones normales (tablas), no índices, vistas o secuencias
+)   
+    SELECT *,
+        CASE WHEN divergence_ratio > 10 THEN 'CRITICAL'
+        WHEN divergence_ratio > 5 THEN 'WARNING'
+        ELSE 'OK'
+    END AS stats
+    FROM stats_completions
+    /*
+    - Filtro de tablas que han recibido carga de datos pero nunca han sido procesadas por el Autovacuum/Analyze
+    - Divergencia > 5 (umbral estándar de riesgo de Seq Scan).
+    - (estimate = 0) = tablas nuevas/importadas que no tienen foto inicial 
+    */
+    -- tolerancia de 5, si el ratio es mayor a eso, un seq scan erróneo puede ocurrir más fácil
+    WHERE (divergence_ratio > 5) OR (planner_estimate = 0 AND stats_live_tuples > 100)
+    -- Se establece un umbral de 100 tuplas vivas para asegurar Significancia Estadística
+    -- En tablas pequeñas, un ratio de divergencia alto es irrelevante.
+ORDER BY divergence_ratio DESC NULLS LAST;
+
+/*
+REFERENCIAS.
+PostgreSQL. (2026). 52.11. pg_class. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-class.html
+PostgreSQL. (2026). 52.32. pg_namespace. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/catalog-pg-namespace.html
+PostgreSQL. (2026). 27.2.19. pg_stat_all_tables. PostgreSQL 18 Documentation.  https://www.postgresql.org/docs/18/monitoring-stats.html#MONITORING-PG-STAT-ALL-TABLES-VIEW
+PostgreSQL. (2026). 9.3. Mathematical Functions and Operators. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/functions-math.html
+PostgreSQL. (2026). 9.18.4. GREATEST and LEAST. https://www.postgresql.org/docs/18/functions-conditional.html#FUNCTIONS-GREATEST-LEAST
+PostgreSQL. (2026). 9.18.1. CASE. https://www.postgresql.org/docs/18/functions-conditional.html#FUNCTIONS-CASE
+*/
