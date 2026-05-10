@@ -1,3 +1,6 @@
+import psycopg2
+from psycopg2 import extras
+
 """
 PgGuardian — Auditoría de Índices
 
@@ -21,7 +24,7 @@ def check_missing_partial_indexes(conn):
         c.reltuples::bigint AS estimated_rows,
         (s.most_common_vals::text::text[])[1] AS dominant_value,
  
-        round( (s.most_common_freqs[1] * 100)::numeric, 2) AS percent_occurrence
+        round( (s.most_common_freqs[1] * 100)::numeric, 2) AS percent_occurrence,
         s.n_distinct AS estimated_distinct
 
     FROM pg_stats s
@@ -63,8 +66,7 @@ def check_missing_partial_indexes(conn):
         print(f"Error al detectar oportunidades de índices parciales: {e}")
         raise e
     return missing_partial
-import psycopg2
-from psycopg2 import extras
+
 
 
 # Función para detectar llaves foráneas sin índice
@@ -233,3 +235,54 @@ def check_covering_index_candidates(conn):
         print(f"Error en el detector de Covering Indexes: {e}")
         raise e
     return covering_candidates
+
+
+def check_obsolete_stats(conn):
+    """
+    Identifica tablas donde la estimación del Planner (pg_class) difiere 
+    significativamente del conteo del recolector de estadísticas (pg_stat_user_tables).
+    Detecta divergencias que causan planes de ejecución subóptimos.
+    """
+
+    query = """
+    WITH stats_completions AS (
+        SELECT
+            psu.schemaname AS schema_name,
+            psu.relname AS table_name,
+            c.reltuples::bigint AS planner_estimate, 
+            psu.n_live_tup AS stats_live_tuples,
+            CASE
+                WHEN psu.n_live_tup > 0 AND c.reltuples > 0 
+                    THEN round (
+                         
+                        GREATEST(c.reltuples, psu.n_live_tup)::numeric / 
+                        LEAST(c.reltuples, psu.n_live_tup)::numeric, 2)
+                ELSE NULL
+            END AS divergence_ratio
+        FROM pg_stat_user_tables psu
+        JOIN pg_class c ON c.relname = psu.relname
+        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = psu.schemaname
+        WHERE n.nspname NOT LIKE 'pg_%%' 
+        AND c.relkind = 'r' 
+    )   
+    SELECT *,
+        CASE 
+            WHEN divergence_ratio > 10 THEN 'CRITICAL'
+            WHEN divergence_ratio > 5 THEN 'WARNING'
+            ELSE 'OK'
+        END AS stats_severity
+    FROM stats_completions
+    WHERE (divergence_ratio > 5) OR (planner_estimate = 0 AND stats_live_tuples > 100) 
+    ORDER BY divergence_ratio DESC NULLS LAST;
+    """
+    obsolete_stats = []
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query)
+            obsolete_stats = cur.fetchall()
+    
+    except Exception as e:
+        print(f"Error en el detector de Obsolete Stats: {e}")
+        raise e
+    return obsolete_stats
