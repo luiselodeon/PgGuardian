@@ -10,7 +10,9 @@
 
 services:
   db:
-    image: postgres:16
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: tiendadb
     restart: unless-stopped
     environment:
