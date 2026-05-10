@@ -26,6 +26,7 @@ Referencias:
 52.11. pg_class. (2026, 26 febrero). PostgreSQL Documentation. https://www.postgresql.org/docs/current/catalog-pg-class.html
 Check_postgres.pl. (s. f.). https://bucardo.org/check_postgres/check_postgres.pl.html#bloat
 Ioguix. (2022). pgsql-bloat-estimation/table/table_bloat.sql at master · ioguix/pgsql-bloat-estimation. GitHub. https://github.com/ioguix/pgsql-bloat-estimation/blob/master/table/table_bloat.sql
+Posts, V. M. (2020, 18 mayo). Common administrator responsibilities on Amazon RDS and Amazon Aurora for PostgreSQL databases. TargetSocialMedia. https://targetsocialmediasoftware.wordpress.com/2020/05/18/common-administrator-responsibilities-on-amazon-rds-and-amazon-aurora-for-postgresql-databases/
 Show database bloat - PostgreSQL wiki. (s. f.). https://wiki.postgresql.org/wiki/Show_database_bloat
 */
 
