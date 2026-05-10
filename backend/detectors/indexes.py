@@ -286,3 +286,60 @@ def check_obsolete_stats(conn):
         print(f"Error en el detector de Obsolete Stats: {e}")
         raise e
     return obsolete_stats
+
+
+def check_leading_wildcard_searches(conn):
+    """
+    Detecta el uso de LIKE/ILIKE con wildcard al inicio (%%texto%%).
+    Estas consultas invalidan los indices B-Tree y fuerzan Sequential Scans,
+    impactando severamente el I/O del servidor.
+    """
+    
+    # usamos %% para escapar el simbolo % de cara a psycopg2
+    # también \\\\s para que el backslash llegue integro al motor de regex de postgres
+    query = """
+    SELECT
+        LEFT(pss.query, 250) AS query_sample,
+        pss.calls AS total_executions,
+        round(pss.total_exec_time::numeric, 2) AS total_time_ms,
+        round((pss.total_exec_time / NULLIF(pss.calls, 0))::numeric, 2) AS avg_ms,
+
+        CASE
+            WHEN pss.query ~* 'LIKE\\\\s+''%%[^'']++%%'''
+                THEN 'LIKE con wildcard inicial: LIKE %%texto%% (sensible)'
+            WHEN pss.query ~* 'ILIKE\\\\s+''%%[^'']++%%'''
+                THEN 'ILIKE con wildcard inicial: ILIKE %%texto%% (insensible)'
+            ELSE 'Patron LIKE/ILIKE ineficiente detectado'
+        END AS anti_pattern_type,
+
+        CASE
+            WHEN pss.calls > 100 AND (pss.total_exec_time / NULLIF(pss.calls, 0)) > 500
+                THEN 'HIGH'
+            WHEN pss.calls > 50 OR (pss.total_exec_time / NULLIF(pss.calls, 0)) > 1000
+                THEN 'MEDIUM'
+            ELSE 'LOW'
+        END AS severity
+
+    FROM pg_stat_statements pss
+
+    WHERE
+        (pss.query ~* 'LIKE\\\\s+''%%[^'']++%%''' OR pss.query ~* 'ILIKE\\\\s+''%%[^'']++%%''')
+        AND pss.calls >= 2
+        AND pss.query NOT ILIKE '%%pg_%%'
+        AND pss.query NOT ILIKE '%%information_schema%%'
+
+    ORDER BY pss.total_exec_time DESC
+    LIMIT 15;
+    """
+    
+    results = []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query)
+            results = cur.fetchall()
+    except Exception as e:
+        # En caso de error, mostramos el H-ID para facilitar el debug
+        print(f"Error en detector de Wildcards: {e}")
+        raise e
+        
+    return results

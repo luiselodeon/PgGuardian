@@ -357,3 +357,70 @@ PostgreSQL. (2026). 9.3. Mathematical Functions and Operators. PostgreSQL 18 Doc
 PostgreSQL. (2026). 9.18.4. GREATEST and LEAST. https://www.postgresql.org/docs/18/functions-conditional.html#FUNCTIONS-GREATEST-LEAST
 PostgreSQL. (2026). 9.18.1. CASE. https://www.postgresql.org/docs/18/functions-conditional.html#FUNCTIONS-CASE
 */
+
+/*
+Detector de wildcard
+Detecta queries en pg_stat_statements que usan el patrón LIKE '%algo%' (con % al inicio),
+Este patrón impide que Postgres use cualquier índice B-Tree (balanced tree que acelera las consultas)
+ porque el motor no puede hacer un range scan si no conoce los primeros caracteres de la cadena buscada,
+ viéndose forzado a hacer seq scans (mucho más lentos)
+*/
+
+SELECT
+-- Recorte a 250 caracteres para evitar saturar el reporte
+    LEFT(pss.query, 250) AS query_sample,
+    pss.calls AS total_executions,
+    round(pss.total_exec_time::numeric,2) AS total_time_ms,
+    -- tiempo promedio: permite identificar si la query es lenta por naturaleza
+    round( (pss.total_exec_time / NULLIF(pss.calls, 0))::numeric, 2 ) AS avg_ms,
+
+    CASE
+    -- busca la palabra LIKE seguida de cualquier texto que no sea otra comilla
+    -- nos asegura que estemos detectando el comodín al inicio, que es el que realmente rompe el índice
+        WHEN pss.query ~* 'LIKE\s+''%[^'']+%'''
+            THEN 'LIKE con wildcard inicial: LIKE ''%texto%'' (sensible a mayúsculas)'
+        WHEN pss.query ~* 'ILIKE\s+''%[^'']+%'''
+            THEN 'ILIKE con wildcard inicial: ILIKE ''%texto%'' (insensible a mayúsculas)'
+        ELSE 'Patrón LIKE/ILIKE ineficiente detectado'
+    END AS anti_pattern_type,
+
+    -- Clasificación de severidad (Lógica de impacto: Frecuencia x Tiempo)
+    CASE
+    -- consultas frecuentes (>100 ejecuciones) que además son lentas (>500ms).
+        WHEN pss.calls > 100 AND (pss.total_exec_time / NULLIF(pss.calls, 0)) > 500
+            THEN 'HIGH'
+    -- consultas con latencia alta (>1s) aunque no sean tan frecuentes
+        WHEN pss.calls > 50 OR (pss.total_exec_time / NULLIF(pss.calls, 0)) > 1000
+            THEN 'MEDIUM'
+        ELSE 'LOW'
+    END AS severity
+
+FROM pg_stat_statements pss
+
+WHERE
+    -- Filtro principal: Detectar LIKE/ILIKE con '%' literal al principio
+    -- Caso: LIKE '%...%'
+    (pss.query ~* 'LIKE\s+''%[^'']+%''' OR pss.query ~* 'ILIKE\s+''%[^'']+%''')
+    -- Caso: ILIKE '%...%'
+    
+    -- Excluir consultas esporádicas (filtramos ruido de desarrollo)
+    AND pss.calls >= 2
+    
+    -- Excluir consultas de mantenimiento y del sistema
+    AND pss.query NOT ILIKE '%pg_stat%'
+    AND pss.query NOT ILIKE '%pg_class%'
+    AND pss.query NOT ILIKE '%pg_index%'
+    AND pss.query NOT ILIKE '%information_schema%'
+
+-- Priorizar por impacto total en el servidor (cpu + I/O)
+ORDER BY pss.total_exec_time DESC
+LIMIT 15;
+
+/*
+REFERENCIAS.
+
+PostgreSQL. (2026). 9.7.3. POSIX Regular Expressions. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-POSIX-REGEXP
+PostgreSQL. (2026). 65.1. B-Tree Indexes. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/btree.html
+PostgreSQL. (2026). 9.7. Pattern Matching. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/functions-matching.html
+PostgreSQL. (2026). F.35. pg_trgm (Trigram matching for LIKE). PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/pgtrgm.html
+*/
