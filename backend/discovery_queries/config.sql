@@ -59,9 +59,34 @@ WHERE s.name = 'pg_stat_statements.max'
   AND EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements');
 
 /*
-REFERENCIAS.
+Referencias:
 PostgreSQL. (2026). F.32. pg_stat_statements — Configuration Parameters. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/pgstatstatements.html
 PostgreSQL. (2026). 53.25. pg_settings. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/view-pg-settings.html
 PostgreSQL. (2026). 52.22. pg_extension. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/catalog-pg-extension.html
 PostgreSQL. (2026). 9.4. String Functions and Operators (chr). PostgreSQL 18 Documentation. https://www.postgresql.org/docs/18/functions-string.html
+*/
+
+/*
+Problema: Configuración de los logs desactivado
+
+Este query tiene como objetivo detectar si es que la configuración de los logs
+está desactivada, esto se ve con un valor de -1. Esto se hace para que posteriormente
+se pueda hacer la recomendación de activar la configuración de los logs y poner un valor
+neutral para el negocio como 1000 ms.
+*/
+
+SELECT
+    name, -- Nombre del parámetro
+    setting AS current_value, -- Valor configurado actualmente
+    unit, -- Unidad de medida
+    short_desc
+FROM
+    pg_settings
+WHERE
+    name = 'log_min_duration_statement';
+
+/*
+Referencias:
+
+PostgreSQL. (2026). 53.25. pg_settings. PostgreSQL 18 Documentation. https://www.postgresql.org/docs/current/view-pg-settings.html
 */
