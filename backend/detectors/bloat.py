@@ -19,13 +19,12 @@ def check_table_bloat(conn):
     Analiza el almacenamiento físico de tablas e índices cuantificando el bloat
     y la fragmentación de datos asegurando 0 falsos positivos.
 
-    Requiere tener la extensión pgstattuple y catálogos actualizados (ANALYZE).
+    Requiere tener la extensión pgstattuple.
     """
 
     # Instalar la extensión y forzar la actualización del catálogo
     setup_query = """
     CREATE EXTENSION IF NOT EXISTS pgstattuple;
-    ANALYZE;
     """
     #Query que checa el bloat de una tabla
     query = """
@@ -91,7 +90,7 @@ def check_table_bloat(conn):
 
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Primero ejecutamos la creacion de la extensión y el ANALYZE
+            # Primero ejecutamos la creacion de la extensión
             cur.execute(setup_query)
             # Ejecutamos el query principal de bloat
             cur.execute(query)

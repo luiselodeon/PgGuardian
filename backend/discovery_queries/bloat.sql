@@ -15,12 +15,8 @@ Referencia: Neon. (s. f.). The pgstattuple extension. Neon. https://neon.com/do
 */
 CREATE EXTENSION IF NOT EXISTS pgstattuple;
 
-/*Forzamos el Analyze para asegurar el catálogo de pg_stats tenga datos recientes*/
-ANALYZE;
-
 /*El siguiente query está adaptado del query de Greg Sabino Mullane dónde estima el
 bloat entre tablas y columnas. Fue adaptado con el fin de asegurar 0 falsos positivos
-
 
 Referencias:
 52.11. pg_class. (2026, 26 febrero). PostgreSQL Documentation. https://www.postgresql.org/docs/current/catalog-pg-class.html
