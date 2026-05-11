@@ -120,3 +120,41 @@ def check_pg_stat_statements_limit(conn):
         print(f"Error en detector Pg Statement Limit: {e}")
         raise e
     return results
+
+
+def check_slow_query_logging(conn):
+    """
+    Verifica si el registro de consultas lentas está habilitado
+
+    Si log_min_duration_statement es -1, PostgreSQL no registra ninguna
+    consulta por su duración, dificultando el diagnóstico de rendimiento.
+    """
+    slow_query_logging = []
+
+    sql = """
+    SELECT name, setting, unit, short_desc 
+    FROM pg_settings 
+    WHERE name = 'log_min_duration_statement';
+    """
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            config = cur.fetchone()
+
+            if config and config['setting'] == '-1':
+                slow_query_logging.append({
+                    "category": "Configuración de Servidor",
+                    "title": "Registro de queries lentas desactivado",
+                    "severity": "MEDIUM",
+                    "evidence": f"El parámetro '{config['name']}' tiene el valor de '{config['setting']}'.",
+                    "recommendation": (
+                        "Establecer 'log_min_duration_statement' en 1000ms"
+                    ),
+                    "sql_fix": "ALTER SYSTEM SET log_min_duration_statement = '1000ms'; SELECT pg_reload_conf();"
+                })
+
+    except Exception as e:
+        print(f"Error al verificar configuración de logs: {e}")
+
+    return slow_query_logging
