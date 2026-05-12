@@ -1,9 +1,7 @@
 """
 PgGuardian — Detectores de Queries Problemáticas
 
-Módulo encargado de analizar consultas con impacto negativo
-en rendimiento mediante métricas de pg_stat_statements y
-uso de archivos temporales.
+Módulo encargado de analizar consultas con impacto negativo en rendimiento mediante métricas de pg_stat_statements y uso de archivos temporales.
 
 Incluye:
 - Detección de queries con temp_blks_written
@@ -11,10 +9,21 @@ Incluye:
 - Evaluación de operaciones de sort/hash con uso de disco
 - Clasificación básica de severidad
 
+Referencias:
+https://www.postgresql.org/docs/current/pgstatstatements.html
+https://www.postgresql.org/docs/current/sql-explain.html
+https://www.postgresql.org/docs/current/monitoring-stats.html
+https://klouddb.io/temporary-files-in-postgresql-steps-to-identify-and-fix-temp-file-issues/
+https://www.mssqltips.com/sqlservertip/8295/postgresql-monitoring-with-pg-stat-statements/
 """
 
 # Tamaño normal de bloque temporal en PostgreSQL (8 KB)
 BLOCK_SIZE = 8192
+# Umbrales iniciales para clasificar uso de archivos temporales
+MEDIUM_TEMP_MB = 10
+HIGH_TEMP_MB = 100
+# Umbral inicial para detectar queries con tiempo acumulado alto
+MIN_TOTAL_EXEC_TIME_MS = 1000
 
 
 # Revisar si pg_stat_statements está habilitado
@@ -36,12 +45,21 @@ def check_pg_stat_statements(conn):
         # Ejecutar consulta
         with conn.cursor() as cur:
             cur.execute(sql)
-            return cur.fetchone()[0]
+            return cur.fetchone()[0] # True o False
 
     except Exception as error:
         print(f"Error al verificar pg_stat_statements: {error}")
         return False
 
+
+# Convertir bloques temporales a MB
+def temp_blocks_to_mb(temp_blocks):
+    """
+    Convierte bloques temporales a MB aproximados.
+    """
+
+    # temp_blks_written se reporta en bloques, por eso se multiplica por BLOCK_SIZE
+    return round((temp_blocks * BLOCK_SIZE) / 1024 / 1024, 2)
 
 # Obtener queries que escribieron datos temporales en disco
 def get_temp_queries(conn):
@@ -50,9 +68,11 @@ def get_temp_queries(conn):
     """
 
     sql = """
-    SELECT query,
+     SELECT query,
            calls,
            total_exec_time,
+           mean_exec_time,
+           temp_blks_read,
            temp_blks_written
     FROM pg_stat_statements
     WHERE temp_blks_written > 0
@@ -65,7 +85,7 @@ def get_temp_queries(conn):
         # Ejecutar consulta
         with conn.cursor() as cur:
             cur.execute(sql)
-            return cur.fetchall()
+            return cur.fetchall()  # Queries encontradas
 
     except Exception as error:
         print(f"No se pudieron consultar los bloques temporales: {error}")
@@ -79,21 +99,21 @@ def get_spill_severity(temp_mb):
     """
 
     # Spill alto
-    if temp_mb >= 100:
+    if temp_mb >= HIGH_TEMP_MB:
         return "HIGH"
 
     # Spill medio
-    if temp_mb >= 10:
+    if temp_mb >= MEDIUM_TEMP_MB:
         return "MEDIUM"
 
     # Spill bajo
     return "LOW"
 
 
-# Detectar queries que pudieron hacer spill a disco (posibles operaciones de sort/hash que usaron disco)
-def detect_temp_spills(conn):
+# Evaluar queries que pudieron hacer spill a disco (posibles operaciones de sort/hash que usaron disco)
+def evaluate_temp_spills(conn):
     """
-    Detecta queries con posible uso de archivos temporales usando pg_stat_statements.
+    Evalúa queries con posible uso de archivos temporales usando pg_stat_statements.
     """
 
     findings = []
@@ -123,11 +143,10 @@ def detect_temp_spills(conn):
     # Obtener queries con bloques temporales
     rows = get_temp_queries(conn)
 
-    for query, calls, total_exec_time, temp_blks_written in rows:
+    for query, calls, total_exec_time, mean_exec_time, temp_blks_read, temp_blks_written in rows:
 
         # Conversión aproximada de bloques temporales a MB, 
-        temp_mb = round(
-            (temp_blks_written * BLOCK_SIZE) / 1024 / 1024, 2)
+        temp_mb = temp_blocks_to_mb(temp_blks_written)
 
         findings.append({
 
@@ -148,7 +167,10 @@ def detect_temp_spills(conn):
             # Limitar tamaño del query para evitar respuestas muy largas
             "query_sample": query[:300],
             "calls": calls,
-            "total_exec_time": total_exec_time
+            "total_exec_time": round(total_exec_time, 2),
+            "mean_exec_time": round(mean_exec_time, 2),
+            "temp_blks_read": temp_blks_read,
+            "temp_blks_written": temp_blks_written
         })
 
     return findings
