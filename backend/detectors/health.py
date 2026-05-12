@@ -82,3 +82,57 @@ def check_partitioning_candidates(conn):
         raise e
 
     return partition_candidates
+
+import psycopg2
+import psycopg2.extras
+
+def check_idle_in_transaction(conn):
+    """
+    Detecta sesiones que estan en estado 'idle in transaction'.
+    Estas sesiones bloquean la limpieza de tuples muertos y pueden
+    causar problemas severos de rendimiento y bloat.
+    """
+    query = """
+    SELECT 
+        'pg_stat_activity' AS parameter,
+        pid AS configured_value,
+    
+        -- Describe que PID está causando el bloqueo, su estado y cuánto tiempo lleva activo en minutos.
+        'La conexión (PID ' || pid || ') está bloqueando recursos. '
+        || 'Estado actual: ' || state
+        || '. Tiempo activa/inactiva: '
+        || ROUND(EXTRACT(EPOCH FROM (NOW() - state_change)) / 60, 2)
+        || ' minutos.' AS description,
+    
+        -- Se recomienda terminar la conexión con ese PID.
+        'Terminar la conexión con pg_terminate_backend(' || pid || ') '
+        || 'o configurar idle_in_transaction_session_timeout.' AS recommendation,
+    
+        'Conexión de larga duración detectada' AS finding_id,
+    
+        -- Si el bloqueo lleva dos minutos activo, se determina como severidad alta.
+        -- Si el bloqueo lleva un minuto activo, se clasifica como serveridad media.
+        CASE
+            WHEN state_change < NOW() - INTERVAL '2 minutes' THEN 'HIGH'
+            WHEN state_change < NOW() - INTERVAL '1 minute' THEN 'MEDIUM'
+        END AS severity
+    
+    FROM pg_stat_activity 
+    WHERE 
+         -- Detecta transacciones olvidadas (IDLE) o consultas activas excesivamente largas.
+        (state = 'idle in transaction' OR state = 'active')
+        AND state_change < NOW() - INTERVAL '1 minute'
+        AND pid <> pg_backend_pid()
+        -- Filtro para sólo reportar si es el usuario de la tienda.
+        AND usename = 'tienda_user';
+    """
+    results = []
+    try:
+        # Uso de RealDictCursor para que los resultados sean accesibles por nombre de columna
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(query)
+            results = cur.fetchall()
+    except Exception as e:
+        print(f"Error en detector Idle in Transaction: {e}")
+        raise e
+    return results
