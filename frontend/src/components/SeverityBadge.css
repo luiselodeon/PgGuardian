@@ -1,0 +1,35 @@
+.severity-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.severity--high {
+  background: var(--severity-high-bg);
+  color: var(--severity-high);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.severity--medium {
+  background: var(--severity-medium-bg);
+  color: var(--severity-medium);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.severity--low {
+  background: var(--severity-low-bg);
+  color: var(--severity-low);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.severity--ok {
+  background: var(--severity-ok-bg);
+  color: var(--severity-ok);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}

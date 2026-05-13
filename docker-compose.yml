@@ -13,7 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: tiendadb
+    container_name: pgguardian_tiendadb
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME}
@@ -51,6 +51,35 @@ services:
       PGHOST: db
       PGPORT: 5432
 
+  api: 
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    container_name: pgguardian_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pgguardian_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    
 volumes:
   tienda_data:
     name: tiendadb_data
