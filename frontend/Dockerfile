@@ -1,9 +1,10 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# Instalar dependencias
+# Instalar dependencias (cache mount para acelerar builds repetidos)
 COPY package*.json ./ 
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline
 
 # Copiar código fuente
 COPY . .
