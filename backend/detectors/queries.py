@@ -15,6 +15,11 @@ https://www.postgresql.org/docs/current/sql-explain.html
 https://www.postgresql.org/docs/current/monitoring-stats.html
 https://klouddb.io/temporary-files-in-postgresql-steps-to-identify-and-fix-temp-file-issues/
 https://www.mssqltips.com/sqlservertip/8295/postgresql-monitoring-with-pg-stat-statements/
+
+Nota:
+Las funciones evaluate_top_time_queries y evaluate_database_temp_usage fueron estructuradas con apoyo de IA para complementar la detección inicial de temp_blks_written.
+Se agregaron para que el detector no solo revise queries que escriben bloques temporales, sino también consultas con alto tiempo total de ejecución y uso acumulado de archivos temporales a nivel base de datos.
+Esto ayuda a que el módulo sea más flexible si se prueba con otra base de datos o con un workload diferente.
 """
 
 # Tamaño normal de bloque temporal en PostgreSQL (8 KB)
@@ -130,7 +135,7 @@ def evaluate_temp_spills(conn):
                 "No se encontró la extensión pg_stat_statements."
             ),
             "recommendation": (
-                "Habilitar pg_stat_statements para revisar queries"
+                "Habilitar pg_stat_statements para revisar queries "
                 "lentas y uso de archivos temporales."
             ),
             "sql_fix": (
@@ -148,6 +153,10 @@ def evaluate_temp_spills(conn):
         # Conversión aproximada de bloques temporales a MB, 
         temp_mb = temp_blocks_to_mb(temp_blks_written)
 
+        # Evitar reportar spills demasiado pequeños
+        if temp_mb < 1:
+            continue
+
         findings.append({
 
             "category": "Queries problemáticas",
@@ -162,7 +171,7 @@ def evaluate_temp_spills(conn):
                 "Merge Join o Hash Join. También revisar si work_mem es suficiente."
             ),
             "sql_fix": (
-                "Revisar EXPLAIN ANALYZE antes de ajustar work_mem."
+                "Revisar EXPLAIN (ANALYZE, BUFFERS) antes de ajustar work_mem."
             ),
             # Limitar tamaño del query para evitar respuestas muy largas
             "query_sample": query[:300],
@@ -172,5 +181,153 @@ def evaluate_temp_spills(conn):
             "temp_blks_read": temp_blks_read,
             "temp_blks_written": temp_blks_written
         })
+
+    return findings
+
+# Obtener queries con mayor tiempo total de ejecución
+def get_top_time_queries(conn):
+    """
+    Consulta queries con alto total_exec_time desde pg_stat_statements.
+    """
+
+    sql = """
+    SELECT query,
+           calls,
+           total_exec_time,
+           mean_exec_time,
+           rows
+    FROM pg_stat_statements
+    WHERE total_exec_time >= %s
+    ORDER BY total_exec_time DESC
+    LIMIT 5;
+    """
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (MIN_TOTAL_EXEC_TIME_MS,))
+            return cur.fetchall()
+
+    except Exception as error:
+        print(f"No se pudieron consultar queries por tiempo total: {error}")
+        return []
+
+
+# Evaluar queries con tiempo acumulado alto
+def evaluate_top_time_queries(conn):
+    """
+    Evalúa queries que consumen mucho tiempo total de ejecución.
+    """
+
+    findings = []
+
+    # Esta revisión depende de pg_stat_statements
+    if not check_pg_stat_statements(conn):
+        return findings
+
+    rows = get_top_time_queries(conn)
+
+    for query, calls, total_exec_time, mean_exec_time, rows_returned in rows:
+
+        findings.append({
+            "category": "Queries problemáticas",
+            "title": "Query con alto tiempo total",
+            "severity": "MEDIUM",
+            "evidence": (
+                f"total_exec_time: {round(total_exec_time, 2)} ms, "
+                f"calls: {calls}, mean_exec_time: {round(mean_exec_time, 2)} ms."
+            ),
+            "recommendation": (
+                "Revisar el plan de ejecución de esta consulta. "
+                "Puede ser una query frecuente, pesada o con oportunidad de optimización."
+            ),
+            "sql_fix": (
+                "EXPLAIN (ANALYZE, BUFFERS) <query>;"
+            ),
+            "query_sample": query[:300],
+            "rows": rows_returned
+        })
+
+    return findings
+
+# Obtener uso de archivos temporales a nivel base de datos
+def get_database_temp_usage(conn):
+    """
+    Consulta temp_files y temp_bytes desde pg_stat_database.
+    """
+    # temp_files y temp_bytes son contadores acumulados desde el último reset de estadísticas
+    sql = """
+    SELECT datname,
+           temp_files,
+           temp_bytes
+    FROM pg_stat_database
+    WHERE datname = current_database()
+      AND temp_files > 0
+    ORDER BY temp_bytes DESC;
+    """
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+    except Exception as error:
+        print(f"No se pudo consultar pg_stat_database: {error}")
+        return []
+
+
+# Evaluar uso de archivos temporales a nivel base de datos
+def evaluate_database_temp_usage(conn):
+    """
+    Evalúa si la base de datos ha generado archivos temporales.
+    """
+
+    findings = []
+
+    rows = get_database_temp_usage(conn)
+
+    for datname, temp_files, temp_bytes in rows:
+
+        # Convertir bytes temporales a MB
+        temp_mb = round(temp_bytes / 1024 / 1024, 2)
+
+        findings.append({
+            "category": "Queries problemáticas",
+            "title": "Uso de archivos temporales en la base de datos",
+            "severity": get_spill_severity(temp_mb),
+            "evidence": (
+                f"La base {datname} generó {temp_files} archivos temporales "
+                f"con un tamaño aproximado de {temp_mb} MB."
+            ),
+            "recommendation": (
+                "Revisar queries con ORDER BY, GROUP BY, DISTINCT, joins pesados "
+                "o configuraciones de memoria como work_mem."
+            ),
+            "sql_fix": (
+                "Revisar pg_stat_statements y logs temporales para ubicar "
+                "las queries específicas."
+            )
+        })
+
+    return findings
+
+# Ejecutar todos los detectores de queries problemáticas
+def run_query_checks(conn):
+    """
+    Ejecuta las revisiones de queries problemáticas y regresa
+    los hallazgos encontrados.
+    """
+
+    findings = []
+
+    # Lista de validaciones configuradas actualmente
+    checks = [
+        evaluate_temp_spills,
+        evaluate_top_time_queries,
+        evaluate_database_temp_usage
+    ]
+
+    # Ejecutar cada detector y agregar hallazgos encontrados
+    for check in checks:
+        findings.extend(check(conn))
 
     return findings
