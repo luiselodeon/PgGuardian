@@ -1,12 +1,6 @@
 import './CategoryCard.css'
 
-const iconMap = {
-  bloat: '💾',
-  config: '⚙️',
-  health: '🏥',
-  indexes: '🔍',
-  queries: '⚡',
-}
+
 
 export default function CategoryCard({ categoryKey, category, onClick }) {
   if (!category) return null
@@ -26,7 +20,6 @@ export default function CategoryCard({ categoryKey, category, onClick }) {
   return (
     <div className={`category-card ${statusClass}`} onClick={onClick} role="button" tabIndex={0}>
       <div className="card-header">
-        <span className="card-icon">{iconMap[categoryKey] || '📋'}</span>
         <div className="card-title-group">
           <h3 className="card-title">{category.label}</h3>
           <span className="card-detector-count">{detectorCount} detectores</span>

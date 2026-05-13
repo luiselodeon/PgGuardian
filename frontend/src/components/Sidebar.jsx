@@ -6,37 +6,31 @@ const navItems = [
   {
     path: '/',
     label: 'Overview',
-    icon: '📊',
     description: 'Resumen general',
   },
   {
     path: '/bloat',
     label: 'Bloat',
-    icon: '💾',
     description: 'Bloat y mantenimiento',
   },
   {
     path: '/config',
     label: 'Configuración',
-    icon: '⚙️',
     description: 'Parámetros del servidor',
   },
   {
     path: '/health',
     label: 'Salud General',
-    icon: '🏥',
     description: 'Particionamiento y retención',
   },
   {
     path: '/indexes',
     label: 'Índices',
-    icon: '🔍',
     description: 'Auditoría de índices',
   },
   {
     path: '/queries',
     label: 'Queries',
-    icon: '⚡',
     description: 'Queries problemáticas',
   },
 ]
@@ -64,7 +58,6 @@ export default function Sidebar({ scanData }) {
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <span className="logo-icon">🛡️</span>
           <div>
             <h1 className="logo-text">PgGuardian</h1>
             <span className="logo-subtitle">Health Monitor</span>
@@ -86,7 +79,6 @@ export default function Sidebar({ scanData }) {
                 `nav-item ${isActive ? 'nav-item--active' : ''}`
               }
             >
-              <span className="nav-icon">{item.icon}</span>
               <div className="nav-content">
                 <span className="nav-label">{item.label}</span>
                 <span className="nav-desc">{item.description}</span>

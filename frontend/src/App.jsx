@@ -56,7 +56,7 @@ export default function App() {
           <div className="top-bar-left">
             {error && (
               <div className="error-toast">
-                <span>⚠️ {error}</span>
+                <span>{error}</span>
                 <button onClick={() => setError(null)} className="toast-close">×</button>
               </div>
             )}
@@ -81,7 +81,7 @@ export default function App() {
                   Escaneando…
                 </>
               ) : (
-                <>🔄 Ejecutar Escaneo</>
+                <>Ejecutar Escaneo</>
               )}
             </button>
           </div>

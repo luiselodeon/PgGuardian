@@ -10,7 +10,6 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
       <div className="data-table-container fade-in">
         {title && <h3 className="table-title">{title}</h3>}
         <div className="table-empty">
-          <span className="empty-icon">✅</span>
           <p>{emptyMessage || 'No se encontraron hallazgos'}</p>
         </div>
       </div>
@@ -29,7 +28,7 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
 
   const renderCellValue = (value, key) => {
     if (value === null || value === undefined) return '—'
-    if (typeof value === 'boolean') return value ? '✅' : '❌'
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No'
     if (key === 'severity' || key === 'stats_severity') return <SeverityBadge severity={value} />
 
     // Format numbers
