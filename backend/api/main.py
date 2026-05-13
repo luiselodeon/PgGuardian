@@ -23,8 +23,11 @@ FLUJO DE INFO:
 PROBAR
 - cd backend/api
 - pip install -r requirements.txt
-- python -muvicorn main:app --reload --host 0.0.0.0 --port 8000
-Swagger UI: http://localhost:8000/docs
+- python -m uvicorn main:app --reload --host 0.0.0.0 --port 8001
+Swagger UI: http://localhost:8001/docs
+
+NOTA: Al agregar 2 endpoints nuevos, Swagger no los mostró,
+se cambió el puerto a 8001 y se ejecutó de nuevo el comando de uvicorn.
 """
 
 import sys, os
@@ -104,7 +107,8 @@ DETECTORS_MENU: dict[str, dict] = {
     "D1": {
         "nombre": "Llaves foráneas sin índice",
         "descripcion": "Detecta llaves foráneas que no tienen un índice asociado.",
-        "funcion": check_missing_indexes,
+        "category": "Índices",
+        "function": check_missing_indexes,
         "severidad": "HIGH"
     }
 }
@@ -239,21 +243,80 @@ def run_single_detector(detector_id: str, conn=Depends(get_connection)):
     detector_id = detector_id.upper()
     meta = DETECTORS_MENU.get(detector_id)
 
-    # Ejecutar el detector
-    hallazgos = run_detector(conn, meta["funcion"])
+    # Ejecutar el detector y formatea el resultado a list[dict]
+    hallazgos = run_detector(conn, meta["function"])
 
-    # Contar hallazgos por severidad (DetectorResponse espera dict[str, int])
-    severity_count = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
-    for h in hallazgos:
-        sev = h.get("severity", "MEDIUM").upper()
-        if sev in severity_count:
-            severity_count[sev] += 1
-
+    # Construir respuesta según el schema DetectorResponse
     return DetectorResponse(
         status="warning" if hallazgos else "ok",
         detector=meta["nombre"],
         count=len(hallazgos),
         data=hallazgos,
         executed_at=datetime.utcnow(),
-        severity=severity_count
     )
+
+# ENDPOINT PRINCIPAL: Escaneo completo de la base de datos
+"""
+Recorre y ejecuta todos los detectores de DETECTORS_MENU, luego 
+agrupa los resultados por categoría (Índices, Bloat, etc.)
+y calcula un puntaje de salud (health_score) de 0 a 100.
+"""
+@app.get("/api/v1/scan/full", response_model=FullScanResponse, tags=["scan"])
+def run_full_scan(conn=Depends(get_connection)):
+    """
+    Ejecuta todos los detectores registrados y retorna un reporte
+    """
+
+    categories: dict[str, dict] = {}
+    total_findings = 0
+
+    # Recorrer cada detector del menú de detectores
+    for detector_id, meta in DETECTORS_MENU.items():
+        hallazgos = run_detector(conn, meta["function"])
+        category = meta["category"]
+
+        # Inicializar la categoría si es la primera vez que aparece
+        if category not in categories:
+            categories[category] = {"total": 0, "detectors": {}}
+
+        # Registrar los resultados del detector dentro de su categoría
+        categories[category]["detectors"][detector_id] = {
+            "name": meta["nombre"],
+            "status": "warning" if hallazgos else "ok",
+            "count": len(hallazgos),
+            "severity": meta["severidad"],
+        }
+        categories[category]["total"] += len(hallazgos)
+        total_findings += len(hallazgos)
+    
+    # Construir respuesta según el schema FullScanResponse
+    return FullScanResponse(
+        health_score=calculate_health_score(categories),
+        total_findings=total_findings,
+        categories=categories,
+        executed_at=datetime.utcnow(),
+    )
+
+
+
+# ENDPOINT: Listar detectores del menú
+"""
+Retorna la lista de detectores registrados en DETECTORS_MENU,
+regresa: id, nombre, categoría y severidad por defecto
+"""
+@app.get("/api/v1/detectors", tags=["menu"])
+def list_detectors():
+    
+    # Construir un dict limpio sin el campo "function"
+    return {
+        "total": len(DETECTORS_MENU),
+        "detectors": [
+            {
+                "hallazgo_id": hid,
+                "title": meta["nombre"],
+                "category": meta["category"],
+                "default_severity": meta["severidad"],
+            }
+            for hid, meta in DETECTORS_MENU.items()
+        ],
+    }
