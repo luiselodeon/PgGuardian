@@ -236,6 +236,27 @@ def root():
 
 
 
+@app.get("/health", tags=["meta"])
+def health(conn=Depends(get_connection)):
+    """
+    Verifica que la API funcione y que pueda 
+    conectarse a la base de dato
+    """
+    try:
+        # query simple para confirmar que la conexión jala
+        with conn.cursor() as cur:
+            cur.execute("SELECT version()")
+            version = cur.fetchone()[0]
+        return {
+            "status": "ok",
+            "db_connected": True,
+            "db_version": version,
+            "detectors_available": len(DETECTORS_MENU),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
 # Primer endpoint (prueba)
 @app.get("/api/detectors/{detector_id}", response_model=DetectorResponse, tags=["detectors"])
 def run_single_detector(detector_id: str, conn=Depends(get_connection)):
@@ -306,7 +327,7 @@ regresa: id, nombre, categoría y severidad por defecto
 """
 @app.get("/api/v1/detectors", tags=["menu"])
 def list_detectors():
-    
+
     # Construir un dict limpio sin el campo "function"
     return {
         "total": len(DETECTORS_MENU),
