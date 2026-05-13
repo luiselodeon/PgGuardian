@@ -1,3 +1,4 @@
+import re
 """
 PgGuardian — Detectores de Queries Problemáticas
 
@@ -17,9 +18,10 @@ https://klouddb.io/temporary-files-in-postgresql-steps-to-identify-and-fix-temp-
 https://www.mssqltips.com/sqlservertip/8295/postgresql-monitoring-with-pg-stat-statements/
 
 Nota:
-Las funciones evaluate_top_time_queries y evaluate_database_temp_usage fueron estructuradas con apoyo de IA para complementar la detección inicial de temp_blks_written.
-Se agregaron para que el detector no solo revise queries que escriben bloques temporales, sino también consultas con alto tiempo total de ejecución y uso acumulado de archivos temporales a nivel base de datos.
-Esto ayuda a que el módulo sea más flexible si se prueba con otra base de datos o con un workload diferente.
+Las funciones evaluate_top_time_queries y evaluate_database_temp_usage fueron estructuradas con apoyo de IA para complementar la detección inicial de temp_blks_written. Se agregaron para que el detector no solo revise queries que escriben bloques temporales, sino también consultas con alto tiempo total de ejecución y uso acumulado de archivos temporales a nivel base de datos.
+Las funciones relacionadas con EXPLAIN, especialmente evaluate_single_explain y evaluate_explain_spills, también fueron estructuradas con apoyo de IA para ordenar la lógica y prevenir riesgos de ejecución. Esto se hizo porque EXPLAIN ANALYZE ejecuta la query real, por lo que se agregó validación para ejecutar solo consultas SELECT y usar statement_timeout durante la prueba.
+
+La IA se utilizó como apoyo para estructurar estas funciones adicionales, pero la decisión técnica se basó en documentación de PostgreSQL y en el alcance del detector de memoria, sort spills y hash batches.
 """
 
 # Tamaño normal de bloque temporal en PostgreSQL (8 KB)
@@ -329,5 +331,135 @@ def run_query_checks(conn):
     # Ejecutar cada detector y agregar hallazgos encontrados
     for check in checks:
         findings.extend(check(conn))
+
+    return findings
+
+# Obtener el valor máximo de Batches dentro del plan
+def get_max_batches(plan_text):
+    """
+    Busca valores de Batches en el plan y regresa el mayor.
+    Si no encuentra batches, regresa 0.
+    """
+
+    matches = re.findall(r"Batches:\s*(\d+)", plan_text)
+
+    if not matches:
+        return 0
+
+    return max(int(value) for value in matches)
+
+# Revisar EXPLAIN de una query específica
+def evaluate_single_explain(conn, query):
+    """
+    Revisa el plan de una query buscando señales de sort/hash spill.
+    Solo se recomienda para queries SELECT identificadas como lentas.
+    """
+
+    findings = []
+
+    # Evitar ejecutar INSERT, UPDATE, DELETE u otras porque EXPLAIN ANALYZE sí ejecuta la query real
+    if not query.strip().upper().startswith("SELECT"):
+        return findings
+
+    #Se configura statement_timeout antes de correr el plan, para evitar que una consulta pesada se quede ejecutando demasiado tiempo durante las pruebas
+    try:
+       with conn.cursor() as cur:
+
+        # Limitar tiempo para evitar que EXPLAIN ANALYZE se quede ejecutando demasiado
+        cur.execute("SET statement_timeout = '5s';")
+
+        cur.execute(f"""
+        EXPLAIN (ANALYZE, BUFFERS)
+        {query}
+        """)
+
+        rows = cur.fetchall()
+
+        # Regresar el timeout a su valor normal después de la prueba, con esto no deja afectada la conexión       
+        cur.execute("RESET statement_timeout;")
+
+    except Exception as error:
+        print(f"No se pudo ejecutar EXPLAIN ANALYZE: {error}")
+        conn.rollback() # Si hay error hace rollback y limpia el estado de la transaccion
+        return findings
+
+    # Convertir el plan a texto para buscar señales de spill
+    plan_text = "\n".join(row[0] for row in rows)
+
+    # Sort en disco: normalmente aparece como external merge y Disk
+    if "Sort Method: external merge" in plan_text or "Disk:" in plan_text:
+
+        findings.append({
+            "category": "Queries problemáticas",
+            "title": "Sort en disco detectado por EXPLAIN",
+            "severity": "HIGH",
+            "evidence": (
+                "El plan de ejecución muestra uso de disco en una operación de sort."
+            ),
+            "recommendation": (
+                "Revisar si la query usa ORDER BY, GROUP BY o DISTINCT. "
+                "También validar si work_mem es suficiente antes de ajustarlo."
+            ),
+            "sql_fix": (
+                "Revisar EXPLAIN (ANALYZE, BUFFERS) y evaluar work_mem."
+            ),
+            "query_sample": query[:300]
+        })
+
+    # Hash Join / Hash Aggregate con batches
+    max_batches = get_max_batches(plan_text)
+
+    # Batches: 1 puede ser normal
+    # Solo se genera hallazgo cuando Batches es mayor a 1.
+    if max_batches > 1:
+
+        findings.append({
+            "category": "Queries problemáticas",
+            "title": "Hash con batches detectado por EXPLAIN",
+            "severity": "HIGH",
+            "evidence": (
+                f"El plan contiene Batches: {max_batches}, lo que puede indicar "
+                "que una operación Hash Join o Hash Aggregate fue dividida en lotes."
+            ),
+            "recommendation": (
+                "Revisar operaciones Hash Join o Hash Aggregate. "
+                "Si Batches es mayor a 1, puede indicar que la operación "
+                "no cupo completamente en memoria."
+            ),
+            "sql_fix": (
+                "Validar plan de ejecución y considerar ajuste controlado de work_mem."
+            ),
+            "query_sample": query[:300]
+        })
+
+    return findings
+
+# Evaluar spills desde EXPLAIN usando queries sospechosas
+# Esta como validacion manual y no se grega a run?query porque EXPLAIN ANALYZE ejecuta la query real
+def evaluate_explain_spills(conn):
+    """
+    Obtiene queries con alto total_exec_time y revisa su plan con EXPLAIN.
+    """
+
+    findings = []
+
+    # Esta revisión depende de pg_stat_statements
+    if not check_pg_stat_statements(conn):
+        return findings
+
+    # Se reutilizan las queries con mayor tiempo total
+    rows = get_top_time_queries(conn)
+
+    for query, calls, total_exec_time, mean_exec_time, rows_returned in rows:
+
+        explain_findings = evaluate_single_explain(conn, query)
+
+        for finding in explain_findings:
+            finding["calls"] = calls
+            finding["total_exec_time"] = round(total_exec_time, 2)
+            finding["mean_exec_time"] = round(mean_exec_time, 2)
+            finding["rows"] = rows_returned
+
+        findings.extend(explain_findings)
 
     return findings
