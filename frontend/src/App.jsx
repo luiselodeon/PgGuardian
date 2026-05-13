@@ -1,122 +1,104 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { useState, useEffect, useCallback } from 'react'
+import { Routes, Route } from 'react-router-dom'
+import Sidebar from './components/Sidebar'
+import Overview from './pages/Overview'
+import BloatPage from './pages/BloatPage'
+import ConfigPage from './pages/ConfigPage'
+import HealthPage from './pages/HealthPage'
+import IndexesPage from './pages/IndexesPage'
+import QueriesPage from './pages/QueriesPage'
+import { fullScan } from './api/pgguardian'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+const POLL_INTERVAL = 30000 // 30 seconds
+
+export default function App() {
+  const [scanData, setScanData] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [lastScan, setLastScan] = useState(null)
+  const [error, setError] = useState(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+
+  const runScan = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const data = await fullScan()
+      setScanData(data)
+      setLastScan(new Date().toISOString())
+    } catch (err) {
+      setError(err.message)
+      console.error('Scan failed:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Initial scan
+  useEffect(() => {
+    runScan()
+  }, [runScan])
+
+  // Auto-refresh polling
+  useEffect(() => {
+    if (!autoRefresh) return
+    const interval = setInterval(runScan, POLL_INTERVAL)
+    return () => clearInterval(interval)
+  }, [autoRefresh, runScan])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app-layout">
+      <Sidebar scanData={scanData} />
 
-      <div className="ticks"></div>
+      <main className="main-content">
+        {/* Top bar */}
+        <header className="top-bar">
+          <div className="top-bar-left">
+            {error && (
+              <div className="error-toast">
+                <span>⚠️ {error}</span>
+                <button onClick={() => setError(null)} className="toast-close">×</button>
+              </div>
+            )}
+          </div>
+          <div className="top-bar-actions">
+            <label className="auto-refresh-toggle">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />
+              <span className="toggle-label">Auto-refresh (30s)</span>
+            </label>
+            <button
+              className={`scan-button ${isLoading ? 'scan-button--loading' : ''}`}
+              onClick={runScan}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <span className="spinner"></span>
+                  Escaneando…
+                </>
+              ) : (
+                <>🔄 Ejecutar Escaneo</>
+              )}
+            </button>
+          </div>
+        </header>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        {/* Page content */}
+        <div className="page-wrapper">
+          <Routes>
+            <Route path="/" element={<Overview scanData={scanData} isLoading={isLoading} lastScan={lastScan} />} />
+            <Route path="/bloat" element={<BloatPage scanData={scanData} isLoading={isLoading} />} />
+            <Route path="/config" element={<ConfigPage scanData={scanData} isLoading={isLoading} />} />
+            <Route path="/health" element={<HealthPage scanData={scanData} isLoading={isLoading} />} />
+            <Route path="/indexes" element={<IndexesPage scanData={scanData} isLoading={isLoading} />} />
+            <Route path="/queries" element={<QueriesPage scanData={scanData} isLoading={isLoading} />} />
+          </Routes>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </main>
+    </div>
   )
 }
-
-export default App
