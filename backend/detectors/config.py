@@ -21,6 +21,8 @@ https://es.python-3.com/?p=21123
 https://www.psycopg.org/docs/
 """
 
+import psycopg2.extras
+
 # Valores de referencia inicial para work_mem 
 MIN_WORK_MEM_KB = 16384
 MIN_WORK_MEM_MB = 16

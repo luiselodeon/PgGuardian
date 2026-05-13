@@ -71,6 +71,16 @@ from detectors.indexes import (
     check_leading_wildcard_searches,    
 )
 
+# Detectores de CONFIG
+from detectors.config import (
+    evaluate_work_mem,    
+    evaluate_shared_buffers, 
+    evaluate_pg_stat_statements_max,
+    evaluate_log_min_duration_statement,
+    check_pg_stat_statements_limit,
+    check_slow_query_logging,
+)
+
 # Detectores de BLOAT
 from detectors.bloat import (
     check_table_bloat,                  
@@ -78,19 +88,19 @@ from detectors.bloat import (
     check_dead_tuples,                  
 )
 
-# Detectores de CONFIG
-from detectors.config import (
-    evaluate_work_mem,                  
-)
+
 
 # Detectores de SALUD general
 from detectors.health import (
     check_partitioning_candidates,
+    check_idle_in_transaction,
 )
 
 # Detectores para QUERIES
 from detectors.queries import (
-    detect_temp_spills,                 
+    evaluate_temp_spills,
+    evaluate_top_time_queries,
+    evaluate_database_temp_usage,
     detect_seq_scan_queries,            
 )
  
@@ -104,12 +114,219 @@ se implementan aqui y para que los endpoint los usen
 TODO: implementar los que faltan 
 """
 DETECTORS_MENU: dict[str, dict] = {
-    "D1": {
+
+#-------------------------------------------------------------------------
+                            # DETECTORES EN ÍNDICES 
+#-------------------------------------------------------------------------
+    # check_missing_indexes
+    "I1": {
         "nombre": "Llaves foráneas sin índice",
         "descripcion": "Detecta llaves foráneas que no tienen un índice asociado.",
         "category": "Índices",
         "function": check_missing_indexes,
         "severidad": "HIGH"
+    },
+
+    # check_missing_partial_indexes
+    "I2":{
+        "nombre": "Oportunidades de índices parciales",
+        "descripcion": "Identifica columnas con un valor dominante (>85%%) en tablas grandes donde un índice parcial optimizaría las consultas.",
+        "category": "Índices",
+        "function": check_missing_partial_indexes,
+        "severidad": "MEDIUM"
+    },
+
+    # check_duplicate_indexes
+    "I3": {
+        "nombre": "Índices duplicados",
+        "descripcion": "Detecta índices duplicados ignorando los esquemas de sistema de PostgreSQL.",
+        "category": "Índices",
+        "function": check_duplicate_indexes,
+        "severidad": "HIGH"
+    },
+
+    # check_unused_indexes
+    "I4": {
+        "nombre": "Índices sin usar",
+        "descripcion": "Detecta índices que consumen recursos pero no se utilizan.",
+        "category": "Índices",
+        "function": check_unused_indexes,
+        "severidad": "MEDIUM"
+    },
+
+    # check_covering_index_candidates
+    "I5": {
+        "nombre": "Candidatos a índices de cobertura",
+        "descripcion": "Identifica SELECTs frecuentes que podrían convertirse en Index-Only Scans usando la cláusula INCLUDE.",
+        "category": "Índices",
+        "function": check_covering_index_candidates,
+        "severidad": "LOW"
+    },
+
+    # check_obsolete_stats
+    "I6": {
+        "nombre": "Estadísticas obsoletas",
+        "descripcion": "Detecta tablas donde la estimación del planificador difiere significativamente del conteo real, causando planes de ejecución subóptimos.",
+        "category": "Índices",
+        "function": check_obsolete_stats,
+        "severidad": "MEDIUM"
+    },
+
+    # check_leading_wildcard_searches
+    "I7": {
+        "nombre": "Búsquedas LIKE/ILIKE con wildcard inicial",
+        "descripcion": "Detecta consultas con patrones LIKE '%%texto%%' que invalidan índices B-Tree y fuerzan Sequential Scans.",
+        "category": "Índices",
+        "function": check_leading_wildcard_searches,
+        "severidad": "HIGH"
+    },
+
+#-------------------------------------------------------------------------
+                # DETECTORES EN CONFIGURACIÓN 
+#-------------------------------------------------------------------------
+
+    # evaluate_work_mem
+    "C1": {
+        "nombre": "work_mem insuficiente",
+        "descripcion": "Evalúa si work_mem es demasiado bajo para operaciones de sort y hash, lo cual provoca escritura de archivos temporales en disco.",
+        "category": "Configuración",
+        "function": evaluate_work_mem,
+        "severidad": "MEDIUM"
+    },
+
+    # evaluate_shared_buffers
+    "C2": {
+        "nombre": "shared_buffers insuficiente",
+        "descripcion": "Evalúa si shared_buffers es demasiado bajo, lo cual provoca más lecturas directas desde disco.",
+        "category": "Configuración",
+        "function": evaluate_shared_buffers,
+        "severidad": "MEDIUM"
+    },
+
+    # evaluate_pg_stat_statements_max
+    "C3": {
+        "nombre": "Detector de pg_stat_statements.max",
+        "descripcion": "Evalúa si pg_stat_statements.max podría ser insuficiente.",
+        "category": "Configuración",
+        "function": evaluate_pg_stat_statements_max,
+        "severidad": "MEDIUM"
+    },
+
+    # evaluate_log_min_duration_statement
+    "C4": {
+        "nombre": "Detector de log_min_duration_statement",
+        "descripcion": "Evalúa si log_min_duration_statement está habilitado.",
+        "category": "Configuración",
+        "function": evaluate_log_min_duration_statement,
+        "severidad": "MEDIUM"
+    },
+
+    # check_pg_stat_statements_limit
+    "C5": {
+        "nombre": "Tracking de queries insuficiente",
+        "descripcion": "Verifica si pg_stat_statements_max es muy bajo (<1000), lo cual causa pérdida de métricas por eviction.",
+        "category": "Configuración",
+        "function": check_pg_stat_statements_limit,
+        "severidad": "LOW"
+    },
+
+    # check_slow_query_logging
+    "C6": {
+        "nombre": "Registro de queries lentas desactivado",
+        "descripcion": "Verifica si log_min_duration_statement está desactivado (-1), lo cual impide diagnosticar consultas problemáticas.",
+        "category": "Configuración",
+        "function": check_slow_query_logging,
+        "severidad": "MEDIUM"
+    },
+
+
+#-------------------------------------------------------------------------
+                        # DETECTORES DE BLOAT 
+#-------------------------------------------------------------------------
+    
+    # check_table_bloat
+    "B1":{
+        "nombre": "Bloat en tablas",
+        "descripcion": "Analiza el almacenamiento físico de tablas cuantificando el bloat y la fragmentación de datos.",
+        "category": "Bloat",
+        "function": check_table_bloat,
+        "severidad": "HIGH"
+    },
+
+    # check_disabled_autovacuum
+    "B2": {
+        "nombre": "Autovacuum deshabilitado en tablas",
+        "descripcion": "Detecta tablas donde autovacuum está deshabilitado.",
+        "category": "Bloat",
+        "function": check_disabled_autovacuum,
+        "severidad": "HIGH"
+    },
+
+    # check_dead_tuples
+    "B3": {
+        "nombre": "Tuplas muertas en tablas",
+        "descripcion": "Detecta tuplas muertas que podrían requerir vacuum o autovacuum.",
+        "category": "Bloat",
+        "function": check_dead_tuples,
+        "severidad": "MEDIUM"
+    },
+
+#-------------------------------------------------------------------------
+                        # DETECTORES DE SALUD 
+#-------------------------------------------------------------------------
+
+    # check_partitioning_candidates
+    "H1":{
+        "nombre": "Candidatos a particionamiento",
+        "descripcion": "Detecta tablas grandes que podrían beneficiarse del particionamiento.",
+        "category": "Salud",
+        "function": check_partitioning_candidates,
+        "severidad": "MEDIUM"
+    },
+    
+    # check_idle_in_transaction
+    "H2": {
+        "nombre": "Transacciones inactivas (idle-in-transaction)",
+        "descripcion": "Detecta transacciones que están abiertas sin hacer nada por mucho tiempo.",
+        "category": "Salud",
+        "function": check_idle_in_transaction,
+        "severidad": "HIGH"
+    },
+
+#-------------------------------------------------------------------------
+                        # DETECTORES DE QUERIES 
+#-------------------------------------------------------------------------
+    # evaluate_temp_spills
+    "Q1":{
+        "nombre": "Spill de archivos temporales por query",
+        "descripcion": "Detecta queries que escribieron bloques temporales en disco, indicando que work_mem fue insuficiente para la operación.",
+        "category": "Queries",
+        "function": evaluate_temp_spills,
+        "severidad": "MEDIUM"
+    },
+    # evaluate_top_time_queries
+    "Q2":{
+        "nombre": "Queries con alto tiempo de ejecución",
+        "descripcion": "Identifica las queries con mayor tiempo total acumulado en pg_stat_statements, candidatas a optimización.",
+        "category": "Queries",
+        "function": evaluate_top_time_queries,
+        "severidad": "MEDIUM"
+    },
+    # evaluate_database_temp_usage
+    "Q3":{
+        "nombre": "Uso de archivos temporales (nivel BD)",
+        "descripcion": "Evalúa el uso acumulado de archivos temporales desde pg_stat_database para la base de datos actual.",
+        "category": "Queries",
+        "function": evaluate_database_temp_usage,
+        "severidad": "MEDIUM"
+    },
+    # detect_seq_scan_queries
+    "Q4":{
+        "nombre": "Sequential Scans en queries",
+        "descripcion": "Analiza las queries más costosas y reporta las que realizan escaneos secuenciales completos de tabla (Seq Scan).",
+        "category": "Queries",
+        "function": detect_seq_scan_queries,
+        "severidad": "MEDIUM"
     }
 }
 
