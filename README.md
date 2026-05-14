@@ -28,20 +28,31 @@ A diferencia de alternativas en el mercado (como pganalyze o Datadog), PgGuardia
 ## Instalación y Configuración
 
 ### 1. Clonar el repositorio
+Abrir una terminal en cualquier ruta de su preferencia e ingresar:
+```
 git clone https://github.com/luiselodeon/PgGuardian.git
+```
+```
 cd PgGuardian
+```
 
-### 2. Crear archivo .env
+### 2. Crear archivo .env en la raíz del proyecto con los siguientes valores
+```
 DB_NAME=tiendadb
 DB_USER=tienda_user
 DB_PASSWORD=tienda_pass
-DB_PORT=5432
+DB_PORT=5433
+```
+
 
 ### 3. Levantar Docker
+```
 docker compose up -d
+```
 
 ### 4. Ligas de acceso
 
 **Backend API:**    http://localhost:8000/docs
+<br>
 **Frontend:**       http://localhost:5173
 
