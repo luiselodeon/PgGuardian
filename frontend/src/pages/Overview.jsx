@@ -36,7 +36,13 @@ export default function Overview({ scanData, isLoading, lastScan }) {
           <HealthScore score={scanData?.health_score} isLoading={isLoading} />
           <div className="hero-stats">
             <div className="hero-stat">
-              <span className="hero-stat-value">{scanData?.total_findings ?? '—'}</span>
+              <span className="hero-stat-value">
+                {scanData?.categories
+                  ? Object.values(scanData.categories).reduce((acc, cat) => {
+                      return acc + Object.values(cat.detectors).reduce((sum, d) => sum + (d.count || 0), 0)
+                    }, 0)
+                  : '—'}
+              </span>
               <span className="hero-stat-label">Hallazgos</span>
             </div>
             <div className="hero-stat">

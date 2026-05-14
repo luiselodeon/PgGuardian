@@ -18,18 +18,24 @@ const columnConfig = {
     { key: 'table_name', label: 'Tabla' },
     { key: 'column_name', label: 'Columna' },
     { key: 'referenced_table', label: 'Tabla Referenciada' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL' },
   ],
   duplicate_indexes: [
     { key: 'table_name', label: 'Tabla' },
     { key: 'columns', label: 'Columnas' },
     { key: 'index_names', label: 'Índices' },
     { key: 'count', label: 'Cantidad' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL' },
   ],
   unused_indexes: [
     { key: 'table_name', label: 'Tabla' },
     { key: 'index_name', label: 'Índice' },
     { key: 'idx_scan', label: 'Scans' },
     { key: 'size', label: 'Tamaño' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL' },
   ],
   missing_partial: [
     { key: 'table_name', label: 'Tabla' },
@@ -37,6 +43,8 @@ const columnConfig = {
     { key: 'estimated_rows', label: 'Filas Estimadas' },
     { key: 'dominant_value', label: 'Valor Dominante' },
     { key: 'percent_occurrence', label: 'Ocurrencia %' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL', width: '400px'},
   ],
   covering_candidates: [
     { key: 'query_sample', label: 'Query' },
@@ -44,6 +52,8 @@ const columnConfig = {
     { key: 'total_time_ms', label: 'Tiempo Total (ms)' },
     { key: 'avg_time_ms', label: 'Tiempo Promedio (ms)' },
     { key: 'cache_hit_pct', label: 'Cache Hit %' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL', width: '500px'},
   ],
   obsolete_stats: [
     { key: 'table_name', label: 'Tabla' },
@@ -52,6 +62,8 @@ const columnConfig = {
     { key: 'stats_live_tuples', label: 'Tuples Vivos' },
     { key: 'divergence_ratio', label: 'Ratio Divergencia' },
     { key: 'stats_severity', label: 'Severidad' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL' },
   ],
   wildcard_searches: [
     { key: 'query_sample', label: 'Query' },
@@ -59,6 +71,8 @@ const columnConfig = {
     { key: 'total_time_ms', label: 'Tiempo Total (ms)' },
     { key: 'anti_pattern_type', label: 'Anti-Patrón' },
     { key: 'severity', label: 'Severidad' },
+    { key: 'evidence', label: 'Evidencia' },
+    { key: 'sql_combined', label: 'Recomendación SQL' },
   ],
 }
 
@@ -78,6 +92,7 @@ export default function IndexesPage({ scanData, isLoading }) {
   }
 
   const activeDetector = indexes?.detectors?.[activeTab]
+  const activeData = activeDetector?.data || []  
 
   return (
     <div className="page fade-in">
@@ -106,7 +121,7 @@ export default function IndexesPage({ scanData, isLoading }) {
       <div className="page-content">
         <DataTable
           title={activeDetector?.label || ''}
-          data={activeDetector?.data || []}
+          data={activeData}
           columns={columnConfig[activeTab]}
           emptyMessage="No se encontraron hallazgos para este detector"
         />

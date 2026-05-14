@@ -16,6 +16,10 @@ export default function BloatPage({ scanData, isLoading }) {
     )
   }
 
+  const tableBloatData = bloat?.detectors?.table_bloat?.data || []
+  const autovacuumData = bloat?.detectors?.disabled_autovacuum?.data || []
+  const deadTuplesData = bloat?.detectors?.dead_tuples?.data || []
+
   return (
     <div className="page fade-in">
       <div className="page-header">
@@ -26,7 +30,7 @@ export default function BloatPage({ scanData, isLoading }) {
       <div className="page-content">
         <DataTable
           title="Bloat en Tablas"
-          data={bloat?.detectors?.table_bloat?.data || []}
+          data={tableBloatData}
           columns={[
             { key: 'tblname', label: 'Tabla' },
             { key: 'schemaname', label: 'Schema' },
@@ -34,29 +38,35 @@ export default function BloatPage({ scanData, isLoading }) {
             { key: 'bloat_size', label: 'Tamaño Bloat' },
             { key: 'bloat_pct', label: 'Bloat %' },
             { key: 'extra_pct', label: 'Extra %' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'sql_combined', label: 'Recomendación SQL' },
           ]}
           emptyMessage="No se detectó bloat significativo en las tablas"
         />
 
         <DataTable
           title="Autovacuum Desactivado"
-          data={bloat?.detectors?.disabled_autovacuum?.data || []}
+          data={autovacuumData}
           columns={[
             { key: 'relname', label: 'Tabla' },
             { key: 'reloptions', label: 'Opciones' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'sql_combined', label: 'Recomendación SQL' },
           ]}
           emptyMessage="Todas las tablas tienen autovacuum habilitado"
         />
 
         <DataTable
           title="Dead Tuples"
-          data={bloat?.detectors?.dead_tuples?.data || []}
+          data={deadTuplesData}
           columns={[
             { key: 'table_name', label: 'Tabla' },
             { key: 'schemaname', label: 'Schema' },
             { key: 'n_live_tup', label: 'Filas Vivas' },
             { key: 'n_dead_tup', label: 'Filas Muertas' },
             { key: 'dead_tuple_pct', label: 'Dead %' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'sql_combined', label: 'Recomendación SQL' },
           ]}
           emptyMessage="No se encontraron tablas con dead tuples"
         />
