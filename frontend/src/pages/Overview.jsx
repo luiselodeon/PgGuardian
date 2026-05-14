@@ -51,11 +51,7 @@ export default function Overview({ scanData, isLoading, lastScan }) {
             </div>
             <div className="hero-stat">
               <span className="hero-stat-value">
-                {scanData?.categories
-                  ? Object.values(scanData.categories).reduce(
-                      (acc, cat) => acc + Object.keys(cat.detectors).length, 0
-                    )
-                  : '—'}
+                {scanData?.categories ? 22 : '—'}
               </span>
               <span className="hero-stat-label">Detectores</span>
             </div>

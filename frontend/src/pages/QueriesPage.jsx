@@ -23,6 +23,17 @@ function FindingBlock({ data, emptyMessage }) {
               <span className="rec-evidence-icon">◈</span> {item.evidence}
             </p>
           )}
+          {item.recommendation && (
+            <p className="finding-card-recommendation" style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              <strong>Recomendación:</strong> {item.recommendation}
+            </p>
+          )}
+          {(item.query_sample || item.query) && (
+            <div className="finding-card-query" style={{ marginTop: '0.75rem', padding: '0.75rem', backgroundColor: 'var(--bg-tertiary)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              <strong>Query:</strong><br />
+              {item.query_sample || item.query}
+            </div>
+          )}
           <SqlRecommendation sql={item.sql_recommendation || item.sql_fix} />
         </div>
       ))}
@@ -97,6 +108,7 @@ export default function QueriesPage({ scanData, isLoading }) {
             { key: 'title', label: 'Hallazgo' },
             { key: 'calls', label: 'Ejecuciones' },
             { key: 'evidence', label: 'Evidencia' },
+            { key: 'query', label: 'Query', width: '30%' },
           ]}
           emptyMessage="No se detectaron queries con Seq Scan"
         />

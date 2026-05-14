@@ -20,7 +20,7 @@ BLOCK_SIZE = 8192
 MEDIUM_TEMP_MB = 10
 HIGH_TEMP_MB = 100
 # Umbral inicial para detectar queries con tiempo acumulado alto
-MIN_TOTAL_EXEC_TIME_MS = 1000
+MIN_TOTAL_EXEC_TIME_MS = 100
 
 
 # Revisar si pg_stat_statements está habilitado
@@ -189,7 +189,7 @@ def get_top_time_queries(conn):
            mean_exec_time,
            rows
     FROM pg_stat_statements
-    WHERE total_exec_time >= %s
+    WHERE total_exec_time >= 100
     ORDER BY total_exec_time DESC
     LIMIT 5;
     """
@@ -351,6 +351,9 @@ def evaluate_single_explain(conn, query):
     if not query.strip().upper().startswith("SELECT"):
         return findings
 
+    # Sanitizar parámetros ($1, $2) cambiándolos a NULL para poder hacer EXPLAIN
+    sanitized_query = re.sub(r'\$\d+', 'NULL', query)
+
     #Se configura statement_timeout antes de correr el plan, para evitar que una consulta pesada se quede ejecutando demasiado tiempo durante las pruebas
     try:
        with conn.cursor() as cur:
@@ -360,7 +363,7 @@ def evaluate_single_explain(conn, query):
 
         cur.execute(f"""
         EXPLAIN (ANALYZE, BUFFERS)
-        {query}
+        {sanitized_query}
         """)
 
         rows = cur.fetchall()
@@ -436,7 +439,10 @@ def detect_seq_scan_queries(conn):
     sql_top = """
         SELECT query, calls, queryid 
         FROM pg_stat_statements 
-        WHERE query NOT LIKE 'SELECT pg_%' AND query NOT LIKE 'EXPLAIN %'
+        WHERE (query ILIKE 'SELECT %' OR query ILIKE 'INSERT %' OR query ILIKE 'UPDATE %' OR query ILIKE 'DELETE %' OR query ILIKE 'WITH %')
+          AND query NOT ILIKE 'SELECT pg_%' 
+          AND query NOT ILIKE 'SELECT current_database%'
+          AND query NOT ILIKE 'EXPLAIN %'
         ORDER BY total_exec_time DESC LIMIT 20;
     """
 
@@ -447,18 +453,20 @@ def detect_seq_scan_queries(conn):
 
             for row in top_queries:
                 try:
-                    # Se ejecuta el plan de ejecución para la query que se está analizando actualmente
-                    cur.execute(f"EXPLAIN {row['query']}")
+                    # Se ejecuta el plan de ejecución para la query genérica (PostgreSQL 16+)
+                    # Esto evita tener que reemplazar parámetros con NULL, lo que oculta los Seq Scans al planner
+                    cur.execute(f"EXPLAIN (GENERIC_PLAN) {row['query']}")
                     plan = cur.fetchall()
                     
                     # Se busca en el plan de ejecución si es que hay un query que use Seq Scan
                     for plan_line in plan:
-                        line = plan_line[0]
+                        line = plan_line.get('QUERY PLAN', '')
                         
                         # Aquí es donde se detecta Seq Scan en el plan de ejecución
-                        if "Seq Scan on" in line:                            
+                        seq_scan_match = re.search(r'Seq Scan on (\w+)', line)
+                        if seq_scan_match:                            
                             # Esto hace que se pueda extraer el nombre de la tabla del query que se está analizando
-                            table_match = line.split("on ")[1].split("  ")[0].strip()
+                            table_match = seq_scan_match.group(1)
                             
                             seq_scan_queries.append({
                                 "title": f"Seq Scan detectado en tabla: {table_match} por el query {row['queryid']}",
@@ -483,8 +491,10 @@ def detect_seq_scan_queries(conn):
                             })
                             
                             break 
-                except:
+                except Exception as e:
                     # En caso de que no hayan queries que no se permita explain se saltan 
+                    print(f"Error EXPLAIN en detect_seq_scan_queries (ID {row.get('queryid')}): {repr(e)}")
+                    conn.rollback() # Limpiar estado de la transacción si hay error
                     continue
                     
     except Exception as e:
