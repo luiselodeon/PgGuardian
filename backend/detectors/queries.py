@@ -460,11 +460,26 @@ def detect_seq_scan_queries(conn):
                             # Esto hace que se pueda extraer el nombre de la tabla del query que se está analizando
                             table_match = line.split("on ")[1].split("  ")[0].strip()
                             
-                            seq_scan_queries.append({                                
-                                "title": f"Seq Scan detectado en tabla: {table_match} por el query {row['queryid']}",                                                                
+                            seq_scan_queries.append({
+                                "title": f"Seq Scan detectado en tabla: {table_match} por el query {row['queryid']}",
                                 "recommendation": f"Verificar si la tabla '{table_match}' requiere índices",
-                                "query": row['query'][:200], # Muestra el query 
-                                "calls": row['calls'] # Veces que se ha ejecutado el query
+                                "query": row['query'][:200], # Muestra el query
+                                "calls": row['calls'], # Veces que se ha ejecutado el query
+                                "evidence": (
+                                    f"El query (ID {row['queryid']}) realiza un Seq Scan sobre '{table_match}' "
+                                    f"y ha sido ejecutado {row['calls']:,} veces. "
+                                    f"Un Seq Scan en tablas grandes implica leer todas las filas sin usar índice."
+                                ),
+                                "sql_recommendation": (
+                                    f"-- Analizar el plan de ejecución:\n"
+                                    f"EXPLAIN (ANALYZE, BUFFERS) <query>;\n\n"
+                                    f"-- Si la tabla '{table_match}' es grande, considerar un índice:\n"
+                                    f"-- Reemplaza 'columna_filtro' con la columna usada en el WHERE\n"
+                                    f"CREATE INDEX CONCURRENTLY idx_{table_match}_columna_filtro\n"
+                                    f"    ON {table_match} (columna_filtro);\n\n"
+                                    f"-- Actualizar estadísticas:\n"
+                                    f"ANALYZE {table_match};"
+                                ),
                             })
                             
                             break 

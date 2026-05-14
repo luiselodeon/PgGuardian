@@ -75,7 +75,38 @@ def check_partitioning_candidates(conn):
 
             # Query principal
             cur.execute(query)
-            partition_candidates = cur.fetchall()
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            schema = row.get('schemaname', '')
+            table = row.get('table_name', '')
+            size_mb = float(row.get('size_mb', 0))
+            inserts = row.get('total_inserts_history', 0)
+            delete_pct = float(row.get('delete_ratio_pct', 0))
+
+            reasons = []
+            if size_mb > 500:
+                reasons.append(f"pesa {size_mb:.1f} MB (umbral: 500 MB)")
+            if inserts > 100000:
+                reasons.append(f"tiene {inserts:,} inserts históricos")
+            if delete_pct < 5:
+                reasons.append(f"ratio de eliminación bajo ({delete_pct:.1f}%), sin política de retención aparente")
+
+            reason_str = "; ".join(reasons) if reasons else "es candidata por su crecimiento"
+            row['evidence'] = (
+                f"La tabla '{schema}.{table}' ({row.get('total_table_size', '')}) {reason_str}."
+            )
+            row['sql_recommendation'] = (
+                f"-- Convertir a tabla particionada (ejemplo por rango de fecha):\n"
+                f"CREATE TABLE {schema}.{table}_partitioned\n"
+                f"    (LIKE {schema}.{table} INCLUDING ALL)\n"
+                f"    PARTITION BY RANGE (created_at);\n\n"
+                f"CREATE TABLE {schema}.{table}_2024\n"
+                f"    PARTITION OF {schema}.{table}_partitioned\n"
+                f"    FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');"
+            )
+            partition_candidates.append(row)
 
     except Exception as e:
         print(f"Error al analizar los candidatos a particionamiento: {e}")
@@ -83,8 +114,6 @@ def check_partitioning_candidates(conn):
 
     return partition_candidates
 
-import psycopg2
-import psycopg2.extras
 
 def check_idle_in_transaction(conn):
     """
@@ -115,8 +144,10 @@ def check_idle_in_transaction(conn):
         CASE
             WHEN state_change < NOW() - INTERVAL '2 minutes' THEN 'HIGH'
             WHEN state_change < NOW() - INTERVAL '1 minute' THEN 'MEDIUM'
-        END AS severity
-    
+        END AS severity,
+        pid AS session_pid,
+        state AS session_state,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - state_change)) / 60, 2) AS idle_minutes
     FROM pg_stat_activity 
     WHERE 
          -- Detecta transacciones olvidadas (IDLE) o consultas activas excesivamente largas.
@@ -131,7 +162,27 @@ def check_idle_in_transaction(conn):
         # Uso de RealDictCursor para que los resultados sean accesibles por nombre de columna
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            results = cur.fetchall()
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            pid = row.get('session_pid', row.get('configured_value', '?'))
+            state = row.get('session_state', 'desconocido')
+            idle_min = row.get('idle_minutes', 0)
+
+            row['evidence'] = (
+                f"La sesión PID {pid} lleva {idle_min} minutos en estado '{state}', "
+                f"bloqueando recursos de vacuuming y potencialmente otras transacciones."
+            )
+            row['sql_recommendation'] = (
+                f"-- Opción 1: Terminar la sesión problemática\n"
+                f"SELECT pg_terminate_backend({pid});\n\n"
+                f"-- Opción 2: Prevenir futuras sesiones colgadas\n"
+                f"ALTER SYSTEM SET idle_in_transaction_session_timeout = '5min';\n"
+                f"SELECT pg_reload_conf();"
+            )
+            results.append(row)
+
     except Exception as e:
         print(f"Error en detector Idle in Transaction: {e}")
         raise e

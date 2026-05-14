@@ -61,7 +61,28 @@ def check_missing_partial_indexes(conn):
     try:
         with conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            missing_partial = cur.fetchall()
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            table = row.get('table_name', '')
+            col = row.get('column_name', '')
+            dominant = row.get('dominant_value', '')
+            pct = float(row.get('percent_occurrence', 0))
+
+            row['evidence'] = (
+                f"La columna '{col}' de la tabla '{table}' tiene un sesgo del {pct:.1f}%: "
+                f"el valor dominante '{dominant}' representa la gran mayoría de los registros, "
+                f"pero no existe un índice parcial para optimizar búsquedas de la minoría."
+            )
+            row['sql_recommendation'] = (
+                f"-- Índice parcial para excluir el valor dominante (optimiza búsquedas de la minoría)\n"
+                f"CREATE INDEX CONCURRENTLY idx_{table}_{col}_partial\n"
+                f"    ON {table} ({col})\n"
+                f"    WHERE {col} != {dominant};"
+            )
+            missing_partial.append(row)
+
     except Exception as e:
         print(f"Error al detectar oportunidades de índices parciales: {e}")
         raise e
@@ -91,7 +112,7 @@ def check_missing_indexes(conn):
         c.contype = 'f' 
         AND i.indexrelid IS NULL;
     """
-    
+
     missing_indexes = []
     
     try:
@@ -99,12 +120,30 @@ def check_missing_indexes(conn):
         # el resultado como diccionarios
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            missing_indexes = cur.fetchall()
-            
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            table = row.get('table_name', '')
+            col = row.get('column_name', '')
+            ref_table = row.get('referenced_table', '')
+            constraint = row.get('constraint_name', '')
+
+            row['evidence'] = (
+                f"La llave foránea '{constraint}' en '{table}.{col}' que referencia '{ref_table}' "
+                f"no tiene un índice asociado. Esto puede causar Seq Scans en JOINs y "
+                f"bloqueos lentos al hacer DELETE en '{ref_table}'."
+            )
+            row['sql_recommendation'] = (
+                f"CREATE INDEX CONCURRENTLY idx_{str(table).replace('.','_')}_{col}_fk\n"
+                f"    ON {table} ({col});"
+            )
+            missing_indexes.append(row)
+
     except Exception as e:
-        print(f"Error al consultar los índices faltantes: {e}")        
+        print(f"Error al consultar los índices faltantes: {e}")
         raise e
-        
+
     return missing_indexes
 
 
@@ -130,18 +169,41 @@ def check_duplicate_indexes(conn):
     GROUP BY indrelid, indkey
     HAVING COUNT(*) > 1;
     """
-    
+
     duplicate_indexes = []
     
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            duplicate_indexes = cur.fetchall()
-            
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            table = row.get('table_name', '')
+            cols = row.get('columns', '')
+            idx_names = row.get('index_names', '')
+            idx_list = [n.strip() for n in idx_names.split(',')]
+
+            row['evidence'] = (
+                f"La tabla '{table}' tiene {row.get('count', 0)} índices duplicados "
+                f"sobre la(s) columna(s) '{cols}': {idx_names}. "
+                f"Cada índice duplicado consume espacio extra y ralentiza escrituras."
+            )
+            # Sugerir eliminar todos menos el primero de la lista
+            drop_suggestions = "\n".join(
+                f"DROP INDEX CONCURRENTLY {name};" for name in idx_list[1:]
+            )
+            row['sql_recommendation'] = (
+                f"-- Conservar: {idx_list[0]}\n"
+                f"-- Eliminar los duplicados:\n"
+                f"{drop_suggestions}"
+            )
+            duplicate_indexes.append(row)
+
     except Exception as e:
         print(f"Error al detectar índices duplicados: {e}")
         raise e
-        
+
     return duplicate_indexes
 
 
@@ -170,18 +232,37 @@ def check_unused_indexes(conn):
     ORDER BY 
         pg_relation_size(indexrelid) DESC;
     """
-    
+
     unused_indexes = []
     
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            unused_indexes = cur.fetchall()
-            
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            table = row.get('table_name', '')
+            idx = row.get('index_name', '')
+            size = row.get('size', '?')
+
+            row['evidence'] = (
+                f"El índice '{idx}' sobre la tabla '{table}' ocupa {size} "
+                f"y tiene 0 scans desde el último reset de estadísticas. "
+                f"Está consumiendo espacio y ralentizando INSERT/UPDATE/DELETE sin beneficio."
+            )
+            row['sql_recommendation'] = (
+                f"-- Verificar primero si el índice es realmente innecesario:\n"
+                f"SELECT * FROM pg_stat_user_indexes WHERE indexrelname = '{idx}';\n\n"
+                f"-- Si confirmas que no se usa, eliminarlo:\n"
+                f"DROP INDEX CONCURRENTLY {idx};"
+            )
+            unused_indexes.append(row)
+
     except Exception as e:
         print(f"Error en el detector de índices no usados: {e}")
         raise e
-        
+
     return unused_indexes
 
 
@@ -229,8 +310,29 @@ def check_covering_index_candidates(conn):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            covering_candidates = cur.fetchall()
-    
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            calls = row.get('total_executions', 0)
+            avg_ms = float(row.get('avg_time_ms', 0))
+            cache_pct = float(row.get('cache_hit_pct', 100))
+            query_sample = row.get('query_sample', '')
+
+            row['evidence'] = (
+                f"Query ejecutada {calls:,} veces con tiempo promedio de {avg_ms:.2f} ms "
+                f"y cache hit de {cache_pct:.1f}%. Candidata a beneficiarse de un índice cubriente (INCLUDE)."
+            )
+            row['sql_recommendation'] = (
+                f"-- Ejemplo de índice cubriente con INCLUDE:\n"
+                f"-- Reemplaza 'tabla', 'col_filtro' y 'col_select' con los valores reales de la query\n"
+                f"CREATE INDEX CONCURRENTLY idx_tabla_covering\n"
+                f"    ON tabla (col_filtro)\n"
+                f"    INCLUDE (col_select1, col_select2);\n\n"
+                f"-- Verificar con EXPLAIN (ANALYZE, BUFFERS) que usa Index Only Scan"
+            )
+            covering_candidates.append(row)
+
     except Exception as e:
         print(f"Error en el detector de Covering Indexes: {e}")
         raise e
@@ -253,8 +355,7 @@ def check_obsolete_stats(conn):
             psu.n_live_tup AS stats_live_tuples,
             CASE
                 WHEN psu.n_live_tup > 0 AND c.reltuples > 0 
-                    THEN round (
-                         
+                    THEN round(
                         GREATEST(c.reltuples, psu.n_live_tup)::numeric / 
                         LEAST(c.reltuples, psu.n_live_tup)::numeric, 2)
                 ELSE NULL
@@ -280,8 +381,30 @@ def check_obsolete_stats(conn):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            obsolete_stats = cur.fetchall()
-    
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            schema = row.get('schema_name', '')
+            table = row.get('table_name', '')
+            ratio = float(row.get('divergence_ratio', 0) or 0)
+            planner = row.get('planner_estimate', 0)
+            live = row.get('stats_live_tuples', 0)
+
+            row['evidence'] = (
+                f"La tabla '{schema}.{table}' tiene una divergencia de {ratio:.1f}x entre "
+                f"la estimación del planner ({planner:,} filas) y las estadísticas reales "
+                f"({live:,} filas vivas). Esto causa planes de ejecución subóptimos."
+            )
+            row['sql_recommendation'] = (
+                f"-- Actualizar estadísticas de la tabla:\n"
+                f"ANALYZE {schema}.{table};\n\n"
+                f"-- Si la divergencia persiste, aumentar el target de estadísticas:\n"
+                f"ALTER TABLE {schema}.{table} ALTER COLUMN <columna> SET STATISTICS 500;\n"
+                f"ANALYZE {schema}.{table};"
+            )
+            obsolete_stats.append(row)
+
     except Exception as e:
         print(f"Error en el detector de Obsolete Stats: {e}")
         raise e
@@ -331,15 +454,39 @@ def check_leading_wildcard_searches(conn):
     ORDER BY pss.total_exec_time DESC
     LIMIT 15;
     """
-    
+
     results = []
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            results = cur.fetchall()
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            calls = row.get('total_executions', 0)
+            avg_ms = float(row.get('avg_ms', 0))
+            pattern = row.get('anti_pattern_type', 'patrón ineficiente')
+
+            row['evidence'] = (
+                f"Query con {pattern} ejecutada {calls:,} veces "
+                f"con tiempo promedio de {avg_ms:.2f} ms. "
+                f"El wildcard inicial impide el uso de índices B-Tree y fuerza Seq Scans."
+            )
+            row['sql_recommendation'] = (
+                f"-- Instalar la extensión para búsqueda de texto con índices GIN:\n"
+                f"CREATE EXTENSION IF NOT EXISTS pg_trgm;\n\n"
+                f"-- Crear índice trigram para soportar LIKE/ILIKE con wildcard inicial:\n"
+                f"-- Reemplaza 'tabla' y 'columna' con los valores reales\n"
+                f"CREATE INDEX CONCURRENTLY idx_tabla_columna_trgm\n"
+                f"    ON tabla USING gin(columna gin_trgm_ops);\n\n"
+                f"-- Verificar uso del índice:\n"
+                f"EXPLAIN (ANALYZE, BUFFERS) SELECT ... WHERE columna ILIKE '%%texto%%';"
+            )
+            results.append(row)
+
     except Exception as e:
         # En caso de error, mostramos el H-ID para facilitar el debug
         print(f"Error en detector de Wildcards: {e}")
         raise e
-        
+
     return results

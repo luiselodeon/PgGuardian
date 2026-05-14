@@ -330,7 +330,25 @@ def check_pg_stat_statements_limit(conn):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            results = cur.fetchall()
+            rows = cur.fetchall()
+
+        for row in rows:
+            row = dict(row)
+            configured = row.get('configured_value', '?')
+            row['evidence'] = (
+                f"pg_stat_statements.max está configurado en {configured}, "
+                f"por debajo del mínimo recomendado (1000). "
+                f"Esto causa 'eviction' frecuente y pérdida de visibilidad sobre el workload real."
+            )
+            row['sql_recommendation'] = (
+                f"-- En postgresql.conf (requiere reinicio del servidor):\n"
+                f"pg_stat_statements.max = 5000\n\n"
+                f"-- Alternativa con ALTER SYSTEM (también requiere reinicio):\n"
+                f"ALTER SYSTEM SET pg_stat_statements.max = 5000;\n"
+                f"-- Luego reiniciar PostgreSQL para que surta efecto."
+            )
+            results.append(row)
+
     except Exception as e:
         print(f"Error en detector Pg Statement Limit: {e}")
         raise e
