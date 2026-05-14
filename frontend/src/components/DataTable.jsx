@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import SeverityBadge from './SeverityBadge'
+import SqlRecommendation from './SqlRecommendation'
 import './DataTable.css'
 
 export default function DataTable({ title, data, columns, emptyMessage }) {
@@ -16,7 +17,6 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
     )
   }
 
-  // Auto-detect columns if not provided
   const cols = columns || Object.keys(data[0]).map(key => ({
     key,
     label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -26,12 +26,25 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
     setExpandedRow(expandedRow === index ? null : index)
   }
 
-  const renderCellValue = (value, key) => {
+  // Se añade el parámetro 'row' para poder leer toda la fila
+  const renderCellValue = (value, key, row) => {
+    // 1. Interceptar nuestra columna virtual para recomendaciones SQL
+    if (key === 'sql_combined') {
+      const sql = row?.sql_recommendation || row?.sql_fix || row?.suggested_action
+      if (!sql) return '—'
+      return <SqlRecommendation sql={String(sql)} title="SQL" />
+    }
+
+    // 2. Por si llega directo como key en columnas extra
+    if (key === 'sql_recommendation' || key === 'sql_fix' || key === 'suggested_action') {
+      if (!value) return '—'
+      return <SqlRecommendation sql={String(value)} title="SQL" />
+    }
+
     if (value === null || value === undefined) return '—'
     if (typeof value === 'boolean') return value ? 'Sí' : 'No'
     if (key === 'severity' || key === 'stats_severity') return <SeverityBadge severity={value} />
 
-    // Format numbers
     if (typeof value === 'number') {
       if (key.includes('pct') || key.includes('percent') || key.includes('ratio')) {
         return `${value.toFixed(2)}%`
@@ -45,7 +58,6 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
       return value.toLocaleString()
     }
 
-    // Truncate long strings
     if (typeof value === 'string' && value.length > 120) {
       return value.substring(0, 120) + '…'
     }
@@ -53,10 +65,9 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
     return String(value)
   }
 
-  // Get all keys for expanded view
   const allKeys = data.length > 0 ? Object.keys(data[0]) : []
   const displayedKeys = cols.map(c => c.key)
-  const extraKeys = allKeys.filter(k => !displayedKeys.includes(k))
+  const extraKeys = allKeys.filter(k => !displayedKeys.includes(k) && k !== 'sql_recommendation' && k !== 'sql_fix')
 
   return (
     <div className="data-table-container fade-in">
@@ -66,18 +77,27 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
           <thead>
             <tr>
               {cols.map(col => (
-                <th key={col.key}>{col.label}</th>
+                <th 
+                  key={col.key}
+                  style={col.width ? { width: col.width, minWidth: col.width } : {}}
+                >
+                  {col.label}
+                </th>
               ))}
               {extraKeys.length > 0 && <th className="th-expand"></th>}
             </tr>
           </thead>
           <tbody>
             {data.map((row, i) => (
-              <>
-                <tr key={i} onClick={() => extraKeys.length > 0 && toggleRow(i)} className={extraKeys.length > 0 ? 'expandable' : ''}>
+              <React.Fragment key={i}>
+                <tr onClick={() => extraKeys.length > 0 && toggleRow(i)} className={extraKeys.length > 0 ? 'expandable' : ''}>
                   {cols.map(col => (
-                    <td key={col.key} className={col.key === 'query' || col.key === 'query_sample' || col.key === 'sql_fix' ? 'mono' : ''}>
-                      {renderCellValue(row[col.key], col.key)}
+                    <td 
+                      key={col.key}
+                      style={col.width ? { width: col.width, minWidth: col.width } : {}}
+                      className={col.key === 'query' || col.key === 'query_sample' || col.key === 'sql_fix' || col.key === 'sql_combined' ? 'mono' : ''}
+                    >
+                      {renderCellValue(row[col.key], col.key, row)}
                     </td>
                   ))}
                   {extraKeys.length > 0 && (
@@ -87,14 +107,14 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
                   )}
                 </tr>
                 {expandedRow === i && extraKeys.length > 0 && (
-                  <tr key={`${i}-detail`} className="detail-row">
+                  <tr className="detail-row">
                     <td colSpan={cols.length + 1}>
                       <div className="detail-content">
                         {extraKeys.map(k => (
                           <div key={k} className="detail-item">
                             <span className="detail-label">{k.replace(/_/g, ' ')}</span>
                             <span className={`detail-value ${k.includes('sql') || k.includes('query') ? 'mono' : ''}`}>
-                              {renderCellValue(row[k], k)}
+                              {renderCellValue(row[k], k, row)}
                             </span>
                           </div>
                         ))}
@@ -102,7 +122,7 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>

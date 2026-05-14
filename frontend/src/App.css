@@ -8,6 +8,7 @@
   margin-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 /* Top Bar */
@@ -155,6 +156,7 @@
 .page-wrapper {
   padding: 32px;
   flex: 1;
+  min-width: 0;
 }
 
 /* Responsive */

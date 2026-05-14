@@ -3,6 +3,7 @@
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  max-width: 100%;
 }
 
 .table-title {
@@ -12,19 +13,42 @@
   color: var(--text-primary);
 }
 
+/* El wrapper que permite el scroll */
 .table-wrapper {
+  width: 100%;
   overflow-x: auto;
-  padding: 12px 0;
+  /* Suaviza el scroll en móviles y trackpads */
+  -webkit-overflow-scrolling: touch; 
 }
 
+/* Scrollbar personalizada */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.table-wrapper::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+}
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
+}
+
+/* * LA CLAVE ESTÁ AQUÍ:
+ * min-width: max-content obliga a la tabla a expandirse 
+ * según el tamaño de sus datos, activando el scroll del wrapper.
+ */
 .data-table {
   width: 100%;
+  min-width: max-content; 
   border-collapse: collapse;
 }
 
 .data-table th {
   text-align: left;
-  padding: 10px 22px;
+  padding: 12px 22px;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -34,14 +58,15 @@
   white-space: nowrap;
 }
 
+/* Eliminamos max-width y overflow hidden para que no comprima los datos */
 .data-table td {
-  padding: 10px 22px;
+  padding: 12px 22px;
   font-size: 0.85rem;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-subtle);
   max-width: 350px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-wrap: break-word;
 }
 
 .data-table tbody tr:last-child td {
@@ -122,10 +147,6 @@
   align-items: center;
   padding: 48px 24px;
   gap: 12px;
-}
-
-.empty-icon {
-  font-size: 2.5rem;
 }
 
 .table-empty p {
