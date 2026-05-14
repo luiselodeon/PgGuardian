@@ -16,61 +16,36 @@ async function fetchJSON(endpoint) {
   return res.json();
 }
 
+// En esta parte van a estar todas las funciones que estén en el API del Backend
 
-// En esta parte van a estar todas llas funciones que estén en el API del Backend
-// Cuando estén las apis listas, se van a agregar sus exports aquí
+// Health Check
+export const healthCheck = () => fetchJSON('/health-check');
 
-// Esta función es únicamente temporal para poder observar y evaluar el front,
-// posteriormente cuando estén las apis se cambiaran a sus fetchJSON correspondientes.
-// return fetchJSON('/scan/full')
-export async function fullScan() {
-  // Devuelve datos de ejemplo para previsualizar el frontend
-  await new Promise(r => setTimeout(r, 600)) // simula latencia de red
-  return {
-    health_score: 72,
-    total_findings: 14,
-    categories: {
-      bloat: {
-        label: 'Bloat',
-        detectors: {
-          table_bloat:         { label: 'Bloat en Tablas',           count: 3, data: [] },
-          disabled_autovacuum: { label: 'Autovacuum Desactivado',    count: 0, data: [] },
-          dead_tuples:         { label: 'Dead Tuples',               count: 2, data: [] },
-        },
-      },
-      config: {
-        label: 'Configuración',
-        detectors: {
-          work_mem:            { label: 'Valor de work_mem',         count: 1, data: [] },
-          work_mem_evaluation: { label: 'Evaluación de work_mem',    count: 1, data: [] },
-        },
-      },
-      health: {
-        label: 'Salud General',
-        detectors: {
-          partitioning_candidates: { label: 'Candidatos a Particionamiento', count: 2, data: [] },
-        },
-      },
-      indexes: {
-        label: 'Índices',
-        detectors: {
-          missing_indexes:      { label: 'FK Sin Índice',            count: 3, data: [] },
-          duplicate_indexes:    { label: 'Índices Duplicados',       count: 0, data: [] },
-          unused_indexes:       { label: 'Índices No Usados',        count: 1, data: [] },
-          missing_partial:      { label: 'Parciales Faltantes',      count: 0, data: [] },
-          covering_candidates:  { label: 'Covering Index',           count: 0, data: [] },
-          obsolete_stats:       { label: 'Stats Obsoletas',          count: 1, data: [] },
-          wildcard_searches:    { label: 'Wildcards',                count: 0, data: [] },
-        },
-      },
-      queries: {
-        label: 'Queries',
-        detectors: {
-          pg_stat_statements: { label: 'pg_stat_statements', count: 0, data: [{ enabled: true }] },
-          temp_spills:        { label: 'Temp Spills',         count: 0, data: [] },
-          seq_scans:          { label: 'Sequential Scans',    count: 0, data: [] },
-        },
-      },
-    },
-  }
-}
+// Full Scan
+export const fullScan = () => fetchJSON('/full-scan');
+
+// Bloat
+export const getTableBloat = () => fetchJSON('/bloat/table-bloat');
+export const getDisabledAutovacuum = () => fetchJSON('/bloat/disabled-autovacuum');
+export const getDeadTuples = () => fetchJSON('/bloat/dead-tuples');
+
+// Config
+export const getWorkMem = () => fetchJSON('/config/work-mem');
+export const evaluateWorkMem = () => fetchJSON('/config/evaluate-work-mem');
+
+// Health
+export const getPartitioningCandidates = () => fetchJSON('/health/partitioning-candidates');
+
+// Indexes
+export const getMissingPartialIndexes = () => fetchJSON('/indexes/missing-partial');
+export const getMissingIndexes = () => fetchJSON('/indexes/missing');
+export const getDuplicateIndexes = () => fetchJSON('/indexes/duplicate');
+export const getUnusedIndexes = () => fetchJSON('/indexes/unused');
+export const getCoveringCandidates = () => fetchJSON('/indexes/covering-candidates');
+export const getObsoleteStats = () => fetchJSON('/indexes/obsolete-stats');
+export const getLeadingWildcards = () => fetchJSON('/indexes/leading-wildcards');
+
+// Queries
+export const getPgStatStatus = () => fetchJSON('/queries/pg-stat-status');
+export const getTempSpills = () => fetchJSON('/queries/temp-spills');
+export const getSeqScans = () => fetchJSON('/queries/seq-scans');
