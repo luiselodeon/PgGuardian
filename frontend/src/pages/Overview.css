@@ -70,7 +70,7 @@
   left: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle at center, var(--accent-glow) 0%, transparent 60%);
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.12) 0%, transparent 60%);
   pointer-events: none;
 }
 

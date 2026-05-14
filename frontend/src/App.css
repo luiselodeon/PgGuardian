@@ -103,7 +103,8 @@
 
 .scan-button:hover:not(:disabled) {
   background: var(--accent-primary-hover);
-  box-shadow: 0 0 20px var(--accent-glow);
+  box-shadow: var(--shadow-accent);
+  transform: translateY(-1px);
 }
 
 .scan-button:disabled {
@@ -121,7 +122,7 @@
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid var(--text-muted);
+  border: 2px solid rgba(247, 152, 36, 0.2);
   border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;

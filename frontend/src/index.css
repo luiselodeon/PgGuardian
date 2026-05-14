@@ -1,51 +1,59 @@
 :root {
-  /* Background */
-  --bg-primary: #0b0e14;
-  --bg-secondary: #12161f;
-  --bg-card: #161b27;
-  --bg-elevated: #1c2333;
-  --bg-hover: #222b3d;
-  --bg-input: #0f1219;
+  /* ── Brand colors ──────────────────────────────────────────────── */
+  --brand-navy:      #070e8b;   /* dark navy blue                    */
+  --brand-orange:    #f79824;   /* accent orange                     */
+  --brand-blue:      #3b82f6;   /* electric blue                     */
+  --brand-light:     #bbdbf0;   /* light sky blue                    */
 
-  /* Accent */
-  --accent-primary: #6366f1;
-  --accent-primary-hover: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.15);
+  /* ── Background (dark navy-tinted) ───────────────────────────── */
+  --bg-primary:      #080c18;
+  --bg-secondary:    #0d1220;
+  --bg-card:         #111829;
+  --bg-elevated:     #182035;
+  --bg-hover:        #1e2840;
+  --bg-input:        #0a0f1c;
 
-  /* Severity */
-  --severity-high: #ef4444;
-  --severity-high-bg: rgba(239, 68, 68, 0.1);
-  --severity-medium: #f59e0b;
-  --severity-medium-bg: rgba(245, 158, 11, 0.1);
-  --severity-low: #3b82f6;
-  --severity-low-bg: rgba(59, 130, 246, 0.1);
-  --severity-ok: #10b981;
-  --severity-ok-bg: rgba(16, 185, 129, 0.1);
+  /* ── Accent — orange is the primary interactive color ─────────── */
+  --accent-primary:       #f79824;
+  --accent-primary-hover: #ffb347;
+  --accent-glow:          rgba(247, 152, 36, 0.18);
 
-  /* Text */
-  --text-primary: #e2e8f0;
-  --text-secondary: #8b95a8;
-  --text-muted: #4a5568;
-  --text-accent: #a5b4fc;
+  /* ── Severity ─────────────────────────────────────────────────── */
+  --severity-high:        #ef4444;
+  --severity-high-bg:     rgba(239, 68, 68, 0.1);
+  --severity-medium:      #f79824;
+  --severity-medium-bg:   rgba(247, 152, 36, 0.12);
+  --severity-low:         #3b82f6;
+  --severity-low-bg:      rgba(59, 130, 246, 0.1);
+  --severity-ok:          #10b981;
+  --severity-ok-bg:       rgba(16, 185, 129, 0.1);
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-card: rgba(255, 255, 255, 0.08);
+  /* ── Text ─────────────────────────────────────────────────────── */
+  --text-primary:    #e2e8f0;
+  --text-secondary:  #8b9ab2;
+  --text-muted:      #3d4f6a;
+  --text-accent:     #bbdbf0;   /* light brand blue for links        */
 
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --border-subtle:   rgba(187, 219, 240, 0.06);
+  --border-card:     rgba(187, 219, 240, 0.09);
+  --border-accent:   rgba(247, 152, 36, 0.25);
 
-  /* Shadows */
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255, 255, 255, 0.05);
-  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
+  /* ── Radius ───────────────────────────────────────────────────── */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  20px;
 
-  /* Sidebar */
+  /* ── Shadows ──────────────────────────────────────────────────── */
+  --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.4), 0 0 1px rgba(187, 219, 240, 0.04);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-accent:   0 0 24px rgba(247, 152, 36, 0.25);
+
+  /* ── Sidebar ──────────────────────────────────────────────────── */
   --sidebar-width: 260px;
 
-  /* Font */
+  /* ── Font ─────────────────────────────────────────────────────── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }

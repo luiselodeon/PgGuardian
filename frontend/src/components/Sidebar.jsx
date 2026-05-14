@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import Logo from '../assets/Logo.png'
 import './Sidebar.css'
 
 const navItems = [
@@ -58,6 +59,7 @@ export default function Sidebar({ scanData }) {
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
+          <img src={Logo} alt="PgGuardian" className="logo-img" />
           <div>
             <h1 className="logo-text">PgGuardian</h1>
             <span className="logo-subtitle">Health Monitor</span>
