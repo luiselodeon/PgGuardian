@@ -58,10 +58,6 @@ export default function DataTable({ title, data, columns, emptyMessage }) {
       return value.toLocaleString()
     }
 
-    if (typeof value === 'string' && value.length > 120) {
-      return value.substring(0, 120) + '…'
-    }
-
     return String(value)
   }
 
