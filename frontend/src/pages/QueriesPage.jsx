@@ -69,13 +69,13 @@ export default function QueriesPage({ scanData, isLoading }) {
     )
   }
 
-  const pgStatEnabled = queries?.detectors?.pg_stat_statements?.data?.[0]?.enabled
+  const pgStatEnabled = queries?.detectors?.check_pg_stat_statements?.data?.[0]?.pg_stat_statements_enabled || queries?.detectors?.pg_stat_statements?.data?.[0]?.enabled
 
-  const tempSpillsData  = queries?.detectors?.temp_spills?.data    || []
-  const seqScansData    = queries?.detectors?.seq_scans?.data      || []
+  const tempSpillsData  = queries?.detectors?.temp_spills?.data || []
+  const seqScansData    = queries?.detectors?.seq_scans?.data || []
   const topTimeData     = queries?.detectors?.top_time_queries?.data || []
-  const dbTempData      = queries?.detectors?.db_temp_usage?.data  || []
-  const explainData     = queries?.detectors?.explain_spills?.data  || []
+  const dbTempData      = queries?.detectors?.db_temp_usage?.data || []
+  const explainData     = queries?.detectors?.explain_spills?.data || []
 
   return (
     <div className="page fade-in">
@@ -93,13 +93,17 @@ export default function QueriesPage({ scanData, isLoading }) {
       </div>
 
       <div className="page-content">
-        <section className="detector-section">
-          <h3 className="detector-section-title">Temp Spills (Escritura a Disco)</h3>
-          <FindingBlock
-            data={tempSpillsData}
-            emptyMessage="No se detectaron queries con escritura a disco"
-          />
-        </section>
+        <QuerySection
+          title="Temp Spills (Escritura a Disco)"
+          data={tempSpillsData}
+          columns={[
+            { key: 'title', label: 'Hallazgo' },
+            { key: 'severity', label: 'Severidad' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'query_sample', label: 'Query', width: '30%' },
+          ]}
+          emptyMessage="No se detectaron queries con escritura a disco"
+        />
 
         <QuerySection
           title="Sequential Scans"
@@ -113,29 +117,40 @@ export default function QueriesPage({ scanData, isLoading }) {
           emptyMessage="No se detectaron queries con Seq Scan"
         />
 
-        <section className="detector-section">
-          <h3 className="detector-section-title">Queries con Mayor Tiempo Acumulado</h3>
-          <FindingBlock
-            data={topTimeData}
-            emptyMessage="No se detectaron queries con tiempo acumulado alto"
-          />
-        </section>
+        <QuerySection
+          title="Queries con Mayor Tiempo Acumulado"
+          data={topTimeData}
+          columns={[
+            { key: 'title', label: 'Hallazgo' },
+            { key: 'severity', label: 'Severidad' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'query_sample', label: 'Query', width: '35%' },
+          ]}
+          emptyMessage="No se detectaron queries con tiempo acumulado alto"
+        />
 
-        <section className="detector-section">
-          <h3 className="detector-section-title">Uso de Archivos Temporales en BD</h3>
-          <FindingBlock
-            data={dbTempData}
-            emptyMessage="No se detectó uso de archivos temporales a nivel base de datos"
-          />
-        </section>
+        <QuerySection
+          title="Uso de Archivos Temporales en BD"
+          data={dbTempData}
+          columns={[
+            { key: 'title', label: 'Hallazgo' },
+            { key: 'severity', label: 'Severidad' },
+            { key: 'evidence', label: 'Evidencia', width: '50%' },
+          ]}
+          emptyMessage="No se detectó uso de archivos temporales a nivel base de datos"
+        />
 
-        <section className="detector-section">
-          <h3 className="detector-section-title">Spills Detectados por EXPLAIN</h3>
-          <FindingBlock
-            data={explainData}
-            emptyMessage="No se detectaron spills en los planes de ejecución"
-          />
-        </section>
+        <QuerySection
+          title="Spills Detectados por EXPLAIN"
+          data={explainData}
+          columns={[
+            { key: 'title', label: 'Hallazgo' },
+            { key: 'severity', label: 'Severidad' },
+            { key: 'evidence', label: 'Evidencia' },
+            { key: 'query_sample', label: 'Query', width: '30%' },
+          ]}
+          emptyMessage="No se detectaron spills en los planes de ejecución"
+        />
       </div>
     </div>
   )

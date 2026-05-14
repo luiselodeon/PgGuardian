@@ -189,7 +189,7 @@ def get_top_time_queries(conn):
            mean_exec_time,
            rows
     FROM pg_stat_statements
-    WHERE total_exec_time >= 100
+    WHERE total_exec_time >= %s
     ORDER BY total_exec_time DESC
     LIMIT 5;
     """
