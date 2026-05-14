@@ -30,7 +30,7 @@ from api.routers import queries as queries_router
 # Importar detectores 
 from detectors.bloat import check_table_bloat, check_disabled_autovacuum, check_dead_tuples
 from detectors.config import get_work_mem, evaluate_work_mem
-from detectors.health import check_partitioning_candidates
+from detectors.health import check_partitioning_candidates, check_idle_in_transaction
 from detectors.indexes import (check_missing_partial_indexes, check_missing_indexes, check_duplicate_indexes, check_unused_indexes, check_covering_index_candidates, check_obsolete_stats, check_leading_wildcard_searches)
 from detectors.queries import evaluate_temp_spills, detect_seq_scan_queries, check_pg_stat_statements
 
@@ -135,6 +135,7 @@ def full_scan(conn=Depends(get_connection)):
 
     # Health
     partition_candidates = _safe_run(check_partitioning_candidates, conn)
+    idle_in_transaction = _safe_run(check_idle_in_transaction, conn)
 
     # Indexes
     missing_partial = _safe_run(check_missing_partial_indexes, conn)
@@ -194,6 +195,11 @@ def full_scan(conn=Depends(get_connection)):
                     "label": "Candidatos a Particionamiento",
                     "count": len(partition_candidates),
                     "data": partition_candidates,
+                },
+                "idle_in_transaction": {
+                    "label": "Idle In Transaction",
+                    "count": len(idle_in_transaction),
+                    "data": idle_in_transaction,
                 },
             },
         },
@@ -288,7 +294,7 @@ def full_scan(conn=Depends(get_connection)):
     total_findings = (
         len(bloat_warnings) + len(disabled_autovacuum) + len(dead_warnings)
         + len(work_mem_eval)
-        + len(partition_candidates)
+        + len(partition_candidates) + len(idle_in_transaction)
         + len(missing_partial) + len(missing_indexes) + len(duplicate_indexes)
         + len(unused_indexes) + len(covering_candidates) + len(obsolete_stats)
         + len(wildcard_searches)

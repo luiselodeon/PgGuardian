@@ -35,6 +35,7 @@ export const evaluateWorkMem = () => fetchJSON('/config/evaluate-work-mem');
 
 // Health
 export const getPartitioningCandidates = () => fetchJSON('/health/partitioning-candidates');
+export const getIdleInTransaction = () => fetchJSON('/health/idle-in-transaction');
 
 // Indexes
 export const getMissingPartialIndexes = () => fetchJSON('/indexes/missing-partial');
