@@ -1,0 +1,87 @@
+.sql-rec {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: #0d1117;
+  margin: 4px 0;
+  min-width: 250px;
+  width: 100%;
+}
+
+.sql-rec-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(99, 102, 241, 0.12);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.sql-rec-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #a5b4fc;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sql-rec-icon {
+  font-size: 1rem;
+  color: #818cf8;
+}
+
+.sql-rec-copy {
+  padding: 4px 12px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 6px;
+  background: transparent;
+  color: #a5b4fc;
+  font-size: 0.73rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sql-rec-copy:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #c7d2fe;
+}
+
+.sql-rec-copy--done {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+
+.sql-rec-body {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+  font-size: 0.80rem;
+  line-height: 1.7;
+  color: #e2e8f0;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.sql-rec-body code {
+  color: inherit;
+  background: none;
+}
+
+.sql-rec-body::-webkit-scrollbar {
+  height: 6px;
+}
+.sql-rec-body::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+.sql-rec-body::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
+}

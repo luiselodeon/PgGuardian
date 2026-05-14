@@ -49,8 +49,8 @@ def check_table_bloat(conn):
       FROM (
         SELECT
           ( 4 + tpl_hdr_size + tpl_data_size + (2*ma)
-            - CASE WHEN tpl_hdr_size%%ma = 0 THEN ma ELSE tpl_hdr_size%%ma END
-            - CASE WHEN ceil(tpl_data_size)::int%%ma = 0 THEN ma ELSE ceil(tpl_data_size)::int%%ma END
+            - CASE WHEN tpl_hdr_size%ma = 0 THEN ma ELSE tpl_hdr_size%ma END
+            - CASE WHEN ceil(tpl_data_size)::int%ma = 0 THEN ma ELSE ceil(tpl_data_size)::int%ma END
           ) AS tpl_size, bs - page_hdr AS size_per_block, (heappages + toastpages) AS tblpages, heappages,
           toastpages, reltuples, toasttuples, bs, page_hdr, tblid, schemaname, tblname, fillfactor, is_na
         FROM (
@@ -94,7 +94,22 @@ def check_table_bloat(conn):
             cur.execute(setup_query)
             # Ejecutamos el query principal de bloat
             cur.execute(query)
-            table_bloat = cur.fetchall()
+            rows = cur.fetchall()
+
+        # Enriquecer cada fila con evidencia y recomendación SQL
+        for row in rows:
+            row = dict(row)
+            bloat_pct = float(row.get('bloat_pct', 0))
+            schema = row.get('schemaname', '')
+            table = row.get('tblname', '')
+            bloat_size = row.get('bloat_size', 0)
+
+            row['evidence'] = (
+                f"La tabla '{schema}.{table}' tiene {bloat_pct:.1f}% de bloat "
+                f"({bloat_size:,} bytes desperdiciados en almacenamiento fragmentado)."
+            )
+            row['sql_recommendation'] = f"VACUUM FULL {schema}.{table};"
+            table_bloat.append(row)
 
     except Exception as e:
         print(f"Error al analizar el bloat de las tablas: {e}")
@@ -120,7 +135,22 @@ def check_disabled_autovacuum(conn):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            disabled_autovacuum = cur.fetchall()
+            rows = cur.fetchall()
+
+        # Enriquecer cada fila con evidencia y recomendación SQL
+        for row in rows:
+            row = dict(row)
+            table = row.get('relname', '')
+            row['evidence'] = (
+                f"La tabla '{table}' tiene autovacuum explícitamente desactivado "
+                f"en sus opciones de almacenamiento: {row.get('reloptions', '')}."
+            )
+            row['sql_recommendation'] = (
+                f"ALTER TABLE {table} RESET (autovacuum_enabled);\n"
+                f"-- O para re-habilitarlo explícitamente:\n"
+                f"ALTER TABLE {table} SET (autovacuum_enabled = true);"
+            )
+            disabled_autovacuum.append(row)
 
     except Exception as e:
         print(f"Error al detectar tablas con autovacuum desactivado: {e}")
@@ -155,7 +185,38 @@ def check_dead_tuples(conn):
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(query)
-            dead_tuples = cur.fetchall()
+            rows = cur.fetchall()
+
+        # Enriquecer cada fila con evidencia y recomendación SQL
+        for row in rows:
+            row = dict(row)
+            schema = row.get('schemaname', '')
+            table = row.get('table_name', '')
+            dead_pct = float(row.get('dead_tuple_pct', 0))
+            n_dead = row.get('n_dead_tup', 0)
+
+            row['evidence'] = (
+                f"La tabla '{schema}.{table}' tiene {dead_pct:.2f}% de filas muertas "
+                f"({n_dead:,} dead tuples acumuladas)."
+            )
+
+            if dead_pct > 20:
+                row['sql_recommendation'] = (
+                    f"-- Estado alarmante (>{dead_pct:.1f}% dead tuples)\n"
+                    f"VACUUM FULL ANALYZE {schema}.{table};"
+                )
+            elif dead_pct > 10:
+                row['sql_recommendation'] = (
+                    f"-- Estado elevado ({dead_pct:.1f}% dead tuples)\n"
+                    f"VACUUM ANALYZE {schema}.{table};"
+                )
+            else:
+                row['sql_recommendation'] = (
+                    f"-- Estado óptimo, sin acción urgente necesaria\n"
+                    f"VACUUM ANALYZE {schema}.{table};"
+                )
+
+            dead_tuples.append(row)
 
     except Exception as e:
         print(f"Error al detectar las filas muertas (dead tuples): {e}")

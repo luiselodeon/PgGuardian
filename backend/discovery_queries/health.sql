@@ -75,3 +75,51 @@ WHERE
         OR (stat.n_tup_del::numeric / stat.n_tup_ins) < 0.05
     )
 ORDER BY pg_total_relation_size(stat.relid) DESC;
+
+/* Detector de transacciones inactivas (Idle in Transaction)
+   Identifica procesos que abrieron una transacción y no la han cerrado,
+   lo cual previene que el motor limpie filas muertas (bloat) y mantiene
+   locks activos innecesariamente.
+*/
+SELECT
+    'pg_stat_activity' AS parameter,
+    pid AS configured_value,
+
+	-- Describe que PID está causando el bloqueo, su estado y cuánto tiempo lleva activo en minutos.
+    'La conexión (PID ' || pid || ') está bloqueando recursos. '
+    || 'Estado actual: ' || state
+    || '. Tiempo activa/inactiva: '
+    || ROUND(EXTRACT(EPOCH FROM (NOW() - state_change)) / 60, 2)
+    || ' minutos.' AS description,
+
+	-- Se recomienda terminar la conexión con ese PID.
+    'Terminar la conexión con pg_terminate_backend(' || pid || ') '
+    || 'o configurar idle_in_transaction_session_timeout.' AS recommendation,
+
+    'Conexión de larga duración detectada' AS finding_id,
+
+	-- Si el bloqueo lleva dos minutos activo, se determina como severidad alta.
+	-- Si el bloqueo lleva un minuto activo, se clasifica como serveridad media.
+    CASE
+        WHEN state_change < NOW() - INTERVAL '2 minutes' THEN 'HIGH'
+        WHEN state_change < NOW() - INTERVAL '1 minute' THEN 'MEDIUM'
+    END AS severity
+
+FROM pg_stat_activity
+WHERE
+	 -- Detecta transacciones olvidadas (IDLE) o consultas activas excesivamente largas.
+    (state = 'idle in transaction' OR state = 'active')
+    AND state_change < NOW() - INTERVAL '1 minute'
+    AND pid <> pg_backend_pid()
+	-- Filtro para sólo reportar si es el usuario de la tienda.
+    AND usename = 'tienda_user';
+
+/*
+Referencias:
+-Sruthi Ganesh. (2024). Managing Open Idle Connections in PostgreSQL. Medium. https://medium.com/@sruthiganesh/managing-open-idle-connections-in-postgresql-1b884a5f2c67
+-System administration functions. (2018, 8 noviembre). PostgreSQL Documentation. https://www.postgresql.org/docs/9.3/functions-admin.html
+-How to Find and Stop Running Queries on PostgreSQL - Adam Johnson. (2022, 20 junio). https://adamj.eu/tech/2022/06/20/how-to-find-and-stop-running-queries-on-postgresql/
+-Stephan. (2013, 4 octubre). How to convert interval to timestamp with time zone with postgresql? Stack Overflow. https://stackoverflow.com/questions/19183916/how-to-convert-interval-to-timestamp-with-time-zone-with-postgresql
+-Date/Time Functions and Operators. (2012, 1 enero). PostgreSQL Documentation. https://www.postgresql.org/docs/8.1/functions-datetime.html
+-System Information functions. (2020, 13 febrero). PostgreSQL Documentation. https://www.postgresql.org/docs/9.4/functions-info.html
+*/

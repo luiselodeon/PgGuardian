@@ -1,0 +1,148 @@
+:root {
+  /* ── Brand colors ──────────────────────────────────────────────── */
+  --brand-navy:      #070e8b;   /* dark navy blue                    */
+  --brand-orange:    #f79824;   /* accent orange                     */
+  --brand-blue:      #3b82f6;   /* electric blue                     */
+  --brand-light:     #bbdbf0;   /* light sky blue                    */
+
+  /* ── Background (dark navy-tinted) ───────────────────────────── */
+  --bg-primary:      #080c18;
+  --bg-secondary:    #0d1220;
+  --bg-card:         #111829;
+  --bg-elevated:     #182035;
+  --bg-hover:        #1e2840;
+  --bg-input:        #0a0f1c;
+
+  /* ── Accent — orange is the primary interactive color ─────────── */
+  --accent-primary:       #f79824;
+  --accent-primary-hover: #ffb347;
+  --accent-glow:          rgba(247, 152, 36, 0.18);
+
+  /* ── Severity ─────────────────────────────────────────────────── */
+  --severity-high:        #ef4444;
+  --severity-high-bg:     rgba(239, 68, 68, 0.1);
+  --severity-medium:      #f79824;
+  --severity-medium-bg:   rgba(247, 152, 36, 0.12);
+  --severity-low:         #3b82f6;
+  --severity-low-bg:      rgba(59, 130, 246, 0.1);
+  --severity-ok:          #10b981;
+  --severity-ok-bg:       rgba(16, 185, 129, 0.1);
+
+  /* ── Text ─────────────────────────────────────────────────────── */
+  --text-primary:    #e2e8f0;
+  --text-secondary:  #8b9ab2;
+  --text-muted:      #3d4f6a;
+  --text-accent:     #bbdbf0;   /* light brand blue for links        */
+
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --border-subtle:   rgba(187, 219, 240, 0.06);
+  --border-card:     rgba(187, 219, 240, 0.09);
+  --border-accent:   rgba(247, 152, 36, 0.25);
+
+  /* ── Radius ───────────────────────────────────────────────────── */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  20px;
+
+  /* ── Shadows ──────────────────────────────────────────────────── */
+  --shadow-card:     0 2px 8px rgba(0, 0, 0, 0.4), 0 0 1px rgba(187, 219, 240, 0.04);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-accent:   0 0 24px rgba(247, 152, 36, 0.25);
+
+  /* ── Sidebar ──────────────────────────────────────────────────── */
+  --sidebar-width: 260px;
+
+  /* ── Font ─────────────────────────────────────────────────────── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* Utilities */
+code, .mono {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--accent-primary-hover);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 20px 4px var(--accent-glow); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}

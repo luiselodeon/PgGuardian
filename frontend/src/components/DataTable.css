@@ -1,0 +1,166 @@
+.data-table-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.table-title {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 18px 22px 0;
+  color: var(--text-primary);
+}
+
+/* El wrapper que permite el scroll */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  /* Suaviza el scroll en móviles y trackpads */
+  -webkit-overflow-scrolling: touch; 
+}
+
+/* Scrollbar personalizada */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.table-wrapper::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+}
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
+}
+
+/* * LA CLAVE ESTÁ AQUÍ:
+ * min-width: max-content obliga a la tabla a expandirse 
+ * según el tamaño de sus datos, activando el scroll del wrapper.
+ */
+.data-table {
+  width: 100%;
+  min-width: max-content; 
+  border-collapse: collapse;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 12px 22px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+/* Eliminamos max-width y overflow hidden para que no comprima los datos */
+.data-table td {
+  padding: 12px 22px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  max-width: 350px;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr.expandable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.data-table tbody tr.expandable:hover {
+  background: var(--bg-hover);
+}
+
+.th-expand, .td-expand {
+  width: 30px;
+  text-align: center;
+}
+
+.expand-icon {
+  display: inline-block;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.expand-icon--open {
+  transform: rotate(90deg);
+}
+
+/* Detail Row */
+.detail-row td {
+  padding: 0 !important;
+  background: var(--bg-secondary);
+}
+
+.detail-content {
+  padding: 16px 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.detail-value {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.detail-value.mono {
+  background: var(--bg-input);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+}
+
+/* Empty state */
+.table-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  gap: 12px;
+}
+
+.table-empty p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Footer */
+.table-footer {
+  padding: 10px 22px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.result-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

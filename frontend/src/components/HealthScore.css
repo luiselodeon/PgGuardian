@@ -1,0 +1,9 @@
+.health-score-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.health-ring {
+  filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.25));
+}
