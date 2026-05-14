@@ -32,6 +32,11 @@ export const getDeadTuples = () => fetchJSON('/bloat/dead-tuples');
 // Config
 export const getWorkMem = () => fetchJSON('/config/work-mem');
 export const evaluateWorkMem = () => fetchJSON('/config/evaluate-work-mem');
+export const getSharedBuffers = () => fetchJSON('/config/shared-buffers');
+export const evaluateSharedBuffers = () => fetchJSON('/config/evaluate-shared-buffers');
+export const evaluatePgStatMax = () => fetchJSON('/config/evaluate-pg-stat-max');
+export const getPgStatLimit = () => fetchJSON('/config/pg-stat-limit');
+export const getSlowQueryLogging = () => fetchJSON('/config/slow-query-logging');
 
 // Health
 export const getPartitioningCandidates = () => fetchJSON('/health/partitioning-candidates');

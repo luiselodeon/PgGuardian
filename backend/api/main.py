@@ -29,7 +29,7 @@ from api.routers import queries as queries_router
 
 # Importar detectores 
 from detectors.bloat import check_table_bloat, check_disabled_autovacuum, check_dead_tuples
-from detectors.config import get_work_mem, evaluate_work_mem
+from detectors.config import (get_work_mem, evaluate_work_mem, get_shared_buffers, evaluate_shared_buffers, evaluate_pg_stat_statements_max,check_pg_stat_statements_limit,check_slow_query_logging,)
 from detectors.health import check_partitioning_candidates, check_idle_in_transaction
 from detectors.indexes import (check_missing_partial_indexes, check_missing_indexes, check_duplicate_indexes, check_unused_indexes, check_covering_index_candidates, check_obsolete_stats, check_leading_wildcard_searches)
 from detectors.queries import (evaluate_temp_spills,detect_seq_scan_queries,check_pg_stat_statements,evaluate_top_time_queries,evaluate_database_temp_usage,evaluate_explain_spills)
@@ -129,9 +129,20 @@ def full_scan(conn=Depends(get_connection)):
     if work_mem_result:
         name, setting, unit = work_mem_result
         work_mem_data = [{"name": name, "setting": setting, "unit": unit}]
-
     work_mem_finding = evaluate_work_mem(conn)
     work_mem_eval = [work_mem_finding] if work_mem_finding else []
+
+    shared_buffers_result = get_shared_buffers(conn)
+    shared_buffers_data = []
+    if shared_buffers_result:
+        name, setting, unit = shared_buffers_result
+        shared_buffers_data = [{"name": name, "setting": setting, "unit": unit}]
+    shared_buffers_finding = evaluate_shared_buffers(conn)
+    shared_buffers_eval = [shared_buffers_finding] if shared_buffers_finding else []
+
+    pg_stat_max_eval = evaluate_pg_stat_statements_max(conn) or []
+    pg_stat_limit = _safe_run(check_pg_stat_statements_limit, conn)
+    slow_query_logging = _safe_run(check_slow_query_logging, conn)
 
     # Health
     partition_candidates = _safe_run(check_partitioning_candidates, conn)
@@ -188,6 +199,31 @@ def full_scan(conn=Depends(get_connection)):
                     "label": "Evaluación Work Mem",
                     "count": len(work_mem_eval),
                     "data": work_mem_eval,
+                },
+                "shared_buffers": {
+                    "label": "Shared Buffers Actual",
+                    "count": len(shared_buffers_data),
+                    "data": shared_buffers_data,
+                },
+                "shared_buffers_evaluation": {
+                    "label": "Evaluación Shared Buffers",
+                    "count": len(shared_buffers_eval),
+                    "data": shared_buffers_eval,
+                },
+                "pg_stat_max_evaluation": {
+                    "label": "Evaluación pg_stat_statements.max",
+                    "count": len(pg_stat_max_eval),
+                    "data": pg_stat_max_eval,
+                },
+                "pg_stat_limit": {
+                    "label": "Límite de Tracking de Queries",
+                    "count": len(pg_stat_limit),
+                    "data": pg_stat_limit,
+                },
+                "slow_query_logging": {
+                    "label": "Logging de Queries Lentas",
+                    "count": len(slow_query_logging),
+                    "data": slow_query_logging,
                 },
             },
         },
@@ -286,14 +322,25 @@ def full_scan(conn=Depends(get_connection)):
     # --- Calcular Health Score ---
     # Cada problema encontrado resta puntos, máximo 100
     penalty = 0
-    # Bloat crítico
+
+    # Bloat
     bloat_warnings = [r for r in table_bloat if not isinstance(r, dict) or r.get("bloat_pct", 0) > 20]
     penalty += len(bloat_warnings) * 5
     penalty += len(disabled_autovacuum) * 10
     dead_warnings = [r for r in dead_tuples if isinstance(r, dict) and r.get("dead_tuple_pct", 0) > 10]
     penalty += len(dead_warnings) * 5
+
     # Config
     penalty += len(work_mem_eval) * 8
+    penalty += len(shared_buffers_eval) * 8
+    penalty += len(pg_stat_max_eval) * 5
+    penalty += len(pg_stat_limit) * 3
+    penalty += len(slow_query_logging) * 5
+
+    # Health
+    penalty += len(partition_candidates) * 2
+    penalty += len(idle_in_transaction) * 10
+
     # Indexes
     penalty += len(missing_indexes) * 6
     penalty += len(duplicate_indexes) * 4
@@ -301,17 +348,25 @@ def full_scan(conn=Depends(get_connection)):
     penalty += len(missing_partial) * 3
     penalty += len(obsolete_stats) * 5
     penalty += len(wildcard_searches) * 3
+    penalty += len(covering_candidates) * 2
+
     # Queries
     penalty += len([s for s in temp_spills if isinstance(s, dict) and s.get("severity") == "HIGH"]) * 8
     penalty += len([s for s in temp_spills if isinstance(s, dict) and s.get("severity") == "MEDIUM"]) * 5
     penalty += len(seq_scans) * 4
+    penalty += len(top_time_queries) * 4
+    penalty += len(db_temp_usage) * 5
+    penalty += len(explain_spills) * 6
 
+    # Nunca puede ser menor a cero
     health_score = max(0, 100 - penalty)
 
     # Total findings (excluyendo info/ok)
     total_findings = (
         len(bloat_warnings) + len(disabled_autovacuum) + len(dead_warnings)
         + len(work_mem_eval)
+        + len(shared_buffers_eval) + len(pg_stat_max_eval)
+        + len(pg_stat_limit) + len(slow_query_logging)
         + len(partition_candidates) + len(idle_in_transaction)
         + len(missing_partial) + len(missing_indexes) + len(duplicate_indexes)
         + len(unused_indexes) + len(covering_candidates) + len(obsolete_stats)
