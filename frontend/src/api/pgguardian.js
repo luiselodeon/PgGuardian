@@ -50,3 +50,6 @@ export const getLeadingWildcards = () => fetchJSON('/indexes/leading-wildcards')
 export const getPgStatStatus = () => fetchJSON('/queries/pg-stat-status');
 export const getTempSpills = () => fetchJSON('/queries/temp-spills');
 export const getSeqScans = () => fetchJSON('/queries/seq-scans');
+export const getTopTimeQueries = () => fetchJSON('/queries/top-time');
+export const getDatabaseTempUsage = () => fetchJSON('/queries/db-temp-usage');
+export const getExplainSpills = () => fetchJSON('/queries/explain-spills');

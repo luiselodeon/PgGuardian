@@ -32,7 +32,7 @@ from detectors.bloat import check_table_bloat, check_disabled_autovacuum, check_
 from detectors.config import get_work_mem, evaluate_work_mem
 from detectors.health import check_partitioning_candidates, check_idle_in_transaction
 from detectors.indexes import (check_missing_partial_indexes, check_missing_indexes, check_duplicate_indexes, check_unused_indexes, check_covering_index_candidates, check_obsolete_stats, check_leading_wildcard_searches)
-from detectors.queries import evaluate_temp_spills, detect_seq_scan_queries, check_pg_stat_statements
+from detectors.queries import (evaluate_temp_spills,detect_seq_scan_queries,check_pg_stat_statements,evaluate_top_time_queries,evaluate_database_temp_usage,evaluate_explain_spills)
 
 
 app = FastAPI(
@@ -150,6 +150,9 @@ def full_scan(conn=Depends(get_connection)):
     pg_stat_enabled = check_pg_stat_statements(conn)
     temp_spills = _safe_run(evaluate_temp_spills, conn, serialize=False)
     seq_scans = _safe_run(detect_seq_scan_queries, conn, serialize=False)
+    top_time_queries = _safe_run(evaluate_top_time_queries, conn, serialize=False)
+    db_temp_usage = _safe_run(evaluate_database_temp_usage, conn, serialize=False)
+    explain_spills = _safe_run(evaluate_explain_spills, conn, serialize=False)
 
     # --- Agrupar por categoría ---
     categories = {
@@ -261,6 +264,21 @@ def full_scan(conn=Depends(get_connection)):
                     "count": len(seq_scans),
                     "data": seq_scans,
                 },
+                "top_time_queries": {
+                    "label": "Queries Más Lentas",
+                    "count": len(top_time_queries),
+                    "data": top_time_queries,
+                },
+                "db_temp_usage": {
+                    "label": "Uso Temporal en BD",
+                    "count": len(db_temp_usage),
+                    "data": db_temp_usage,
+                },
+                "explain_spills": {
+                    "label": "Spills por EXPLAIN",
+                    "count": len(explain_spills),
+                    "data": explain_spills,
+                },
             },
         },
     }
@@ -299,6 +317,7 @@ def full_scan(conn=Depends(get_connection)):
         + len(unused_indexes) + len(covering_candidates) + len(obsolete_stats)
         + len(wildcard_searches)
         + len(temp_spills) + len(seq_scans)
+        + len(top_time_queries) + len(db_temp_usage) + len(explain_spills)
     )
 
     return FullScanResponse(
