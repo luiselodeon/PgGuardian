@@ -129,16 +129,14 @@ def full_scan(conn=Depends(get_connection)):
     if work_mem_result:
         name, setting, unit = work_mem_result
         work_mem_data = [{"name": name, "setting": setting, "unit": unit}]
-    work_mem_finding = evaluate_work_mem(conn)
-    work_mem_eval = [work_mem_finding] if work_mem_finding else []
+    work_mem_eval = evaluate_work_mem(conn) or []
 
     shared_buffers_result = get_shared_buffers(conn)
     shared_buffers_data = []
     if shared_buffers_result:
         name, setting, unit = shared_buffers_result
         shared_buffers_data = [{"name": name, "setting": setting, "unit": unit}]
-    shared_buffers_finding = evaluate_shared_buffers(conn)
-    shared_buffers_eval = [shared_buffers_finding] if shared_buffers_finding else []
+    shared_buffers_eval = evaluate_shared_buffers(conn) or []
 
     pg_stat_max_eval = evaluate_pg_stat_statements_max(conn) or []
     pg_stat_limit = _safe_run(check_pg_stat_statements_limit, conn)

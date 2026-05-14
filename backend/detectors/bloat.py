@@ -49,8 +49,8 @@ def check_table_bloat(conn):
       FROM (
         SELECT
           ( 4 + tpl_hdr_size + tpl_data_size + (2*ma)
-            - CASE WHEN tpl_hdr_size%%ma = 0 THEN ma ELSE tpl_hdr_size%%ma END
-            - CASE WHEN ceil(tpl_data_size)::int%%ma = 0 THEN ma ELSE ceil(tpl_data_size)::int%%ma END
+            - CASE WHEN tpl_hdr_size%ma = 0 THEN ma ELSE tpl_hdr_size%ma END
+            - CASE WHEN ceil(tpl_data_size)::int%ma = 0 THEN ma ELSE ceil(tpl_data_size)::int%ma END
           ) AS tpl_size, bs - page_hdr AS size_per_block, (heappages + toastpages) AS tblpages, heappages,
           toastpages, reltuples, toasttuples, bs, page_hdr, tblid, schemaname, tblname, fillfactor, is_na
         FROM (

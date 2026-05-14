@@ -428,10 +428,10 @@ def check_leading_wildcard_searches(conn):
         round((pss.total_exec_time / NULLIF(pss.calls, 0))::numeric, 2) AS avg_ms,
 
         CASE
-            WHEN pss.query ~* 'LIKE\\\\s+''%%[^'']++%%'''
-                THEN 'LIKE con wildcard inicial: LIKE %%texto%% (sensible)'
-            WHEN pss.query ~* 'ILIKE\\\\s+''%%[^'']++%%'''
-                THEN 'ILIKE con wildcard inicial: ILIKE %%texto%% (insensible)'
+            WHEN pss.query ~* 'LIKE\\\\s+''%[^'']+%'''
+                THEN 'LIKE con wildcard inicial: LIKE ''%texto%'' (sensible)'
+            WHEN pss.query ~* 'ILIKE\\\\s+''%[^'']+%'''
+                THEN 'ILIKE con wildcard inicial: ILIKE ''%texto%'' (insensible)'
             ELSE 'Patron LIKE/ILIKE ineficiente detectado'
         END AS anti_pattern_type,
 
@@ -446,10 +446,10 @@ def check_leading_wildcard_searches(conn):
     FROM pg_stat_statements pss
 
     WHERE
-        (pss.query ~* 'LIKE\\\\s+''%%[^'']++%%''' OR pss.query ~* 'ILIKE\\\\s+''%%[^'']++%%''')
+        (pss.query ~* 'LIKE\\\\s+''%[^'']+%''' OR pss.query ~* 'ILIKE\\\\s+''%[^'']+%''')
         AND pss.calls >= 2
-        AND pss.query NOT ILIKE '%%pg_%%'
-        AND pss.query NOT ILIKE '%%information_schema%%'
+        AND pss.query NOT ILIKE '%pg_%'
+        AND pss.query NOT ILIKE '%information_schema%'
 
     ORDER BY pss.total_exec_time DESC
     LIMIT 15;
