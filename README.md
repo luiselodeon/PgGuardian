@@ -55,4 +55,6 @@ docker compose up -d
 **Backend API:**    http://localhost:8000/docs
 <br>
 **Frontend:**       http://localhost:5173
+<br> 
+**Landing page:** https://landing-page-pg-guardian.vercel.app/
 
