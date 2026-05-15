@@ -9,6 +9,9 @@ Incluye:
 - Routers para cada módulo detector
 - Endpoint /api/full-scan que ejecuta todos los detectores
 - Endpoint /api/health-check para verificar conectividad
+
+Nota: Todos los routers bajo la carpeta de /routers, así como los archivos 
+bajo la carpeta de /api fueron normalizados con ayuda de la Inteligencia Artificial.
 """
 
 from datetime import datetime, timezone

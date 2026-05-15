@@ -6,6 +6,8 @@
 #   docker compose up -d           # Start the database
 #   docker compose logs -f db      # Watch the seeding progress
 #   docker compose down -v         # Stop and remove all data
+#
+# Este documento fue modificado con ayuda de Inteligencia Artificial.
 # =====================================================================
 
 services:

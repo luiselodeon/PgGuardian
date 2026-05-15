@@ -9,6 +9,8 @@ Detector de bloat en tablas
 Detector de tablas con el autovacuum desactivado
 Detector de tablas con filas muertas
 
+Nota: Todos los detectores bajo la carpeta de /detectors fueron normalizados 
+con ayuda de la Inteligencia Artificial.
 """
 import psycopg2
 from psycopg2 import extras

@@ -1,3 +1,7 @@
+/*
+Este documento, así como todos los documentos bajo la carpeta de components, 
+pages y api, fueron hechos con ayuda de Inteligencia Artificial.
+*/
 import { useState, useEffect, useCallback } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
